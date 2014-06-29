@@ -115,6 +115,7 @@ class Targetometer:
     GPIO.output(self.LED_MOBILE, self.data['mobile_requests_ok'])
     GPIO.output(self.LED_PROGRAMMATIC, self.data['programmatic_requests_ok'])
     GPIO.output(self.LED_DATA, self.data['data_requests_ok'])
+    GPIO.output(self.LED_YEAH, self.data['yeah'])
     
   def show_customer_kpis(self):
     duration = 3
