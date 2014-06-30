@@ -19,6 +19,16 @@ class Targetometer:
   LED_PROGRAMMATIC = 24
   LED_DATA = 26
   LED_ACTIVE = 18
+  logo_1_1 = [0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00111]
+  logo_1_2 = [0b00000,0b00111,0b01111,0b01111,0b01111,0b01111,0b11000,0b10000]
+  logo_1_3 = [0b00000,0b00000,0b10000,0b10000,0b10000,0b10000,0b11111,0b01111]
+  logo_1_4 = [0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b10000,0b11000]
+  logo_2_1 = [0b01111,0b11111,0b11111,0b11110,0b01100,0b00000,0b00000,0b00000]
+  logo_2_2 = [0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000]
+  logo_2_3 = [0b01111,0b01111,0b00111,0b00000,0b00000,0b00000,0b00000,0b00000]
+  logo_2_4 = [0b11000,0b10000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000]
+  
+  
 
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
@@ -43,13 +53,24 @@ class Targetometer:
 
   def initialize_targetometer(self):
     self.lcd.clear()
-    self.lcd.message("nugg.ad\n targetometer")
-    sleep(1)
-    self.lcd.clear()
-    self.lcd.message("initializing...")
-    sleep(1)
-    self.lcd.clear()
+    self.lcd.createChar(1, self.logo_1_1)
+    self.lcd.createChar(2, self.logo_1_2)
+    self.lcd.createChar(3, self.logo_1_3)
+    self.lcd.createChar(4, self.logo_1_4)
+    self.lcd.createChar(5, self.logo_2_1)
+    self.lcd.createChar(6, self.logo_2_2)
+    self.lcd.createChar(7, self.logo_2_3)
+    self.lcd.createChar(8, self.logo_2_4)
 
+    self.lcd.begin(1,1)
+    self.lcd.message("  " + chr(1)+chr(2)+chr(3)+chr(4) + "\n")
+    self.lcd.message("  " + chr(5)+chr(6)+chr(7)+chr(8) + "nugg.ad")
+    sleep(5)
+    self.lcd.clear()
+    self.lcd.message("targetometer\ninitializing...")
+    sleep(2)
+    self.lcd.clear()
+    
     GPIO.output(self.LED_YEAH, True)
     sleep(0.05)
     GPIO.output(self.LED_YEAH, False)
