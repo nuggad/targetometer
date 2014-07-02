@@ -1,15 +1,17 @@
 #!/usr/bin/python
 
 from time import sleep, strftime, localtime
-import time
-import datetime
-import subprocess
 from threading import Timer
 from Adafruit_CharLCDPlate import Adafruit_CharLCDPlate
 import RPi.GPIO as GPIO
 import fcntl, socket, struct
 import requests
 import os
+import time
+import datetime
+import subprocess
+import thread
+import hashlib
 
 class Targetometer:
 
@@ -28,26 +30,28 @@ class Targetometer:
   logo_2_3 = [0b01111,0b01111,0b00111,0b00000,0b00000,0b00000,0b00000,0b00000]
   logo_2_4 = [0b11000,0b10000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000]
   
-  
-
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
-  mac = ""
-  deviceid = "SOME_DEVICE_ID"
+  version = subprocess.check_output(["git" , "describe"])
+  device_id = "SOME_DEVICE_ID"
   connectionOK = False
-  buttonActionExecuting = False
+  blockLCD = False
+  firstUpdate = True
   
   #data
   data = None
+  data_time = None
   
   def __init__(self):
     t = self
-    self.mac = self.get_hw_addr('eth0')
+    m = hashlib.md5()
+    m.update(self.get_hw_addr('eth0'))
+    #self.device_id =  m.hexdigest()
+    print "deviceid: " + m.hexdigest()
     self.gpio_setup()
     self.initialize_targetometer()
     self.query_customer_kpis()
     if self.connectionOK == True:
-      self.update_request_leds()
       self.register_button()
       self.show_customer_kpis()
 
@@ -61,72 +65,43 @@ class Targetometer:
     self.lcd.createChar(6, self.logo_2_2)
     self.lcd.createChar(7, self.logo_2_3)
     self.lcd.createChar(8, self.logo_2_4)
-
     self.lcd.begin(1,1)
     self.lcd.message("  " + chr(1)+chr(2)+chr(3)+chr(4) + "\n")
     self.lcd.message("  " + chr(5)+chr(6)+chr(7)+chr(8) + "nugg.ad")
-    sleep(5)
+    sleep(3)
     self.lcd.clear()
-    self.lcd.message("targetometer\ninitializing...")
+    thread.start_new_thread(self.blink_all_leds_like_kitt, (1,))
+    self.lcd.message("Targetometer\ninitializing...")
     sleep(2)
     self.lcd.clear()
-    
-    GPIO.output(self.LED_YEAH, True)
-    sleep(0.05)
-    GPIO.output(self.LED_YEAH, False)
-    sleep(0.05)
-    GPIO.output(self.LED_MOBILE, True)
-    sleep(0.05)
-    GPIO.output(self.LED_MOBILE, False)
-    sleep(0.05)
-    GPIO.output(self.LED_PROGRAMMATIC, True)
-    sleep(0.05)
-    GPIO.output(self.LED_PROGRAMMATIC, False)
-    sleep(0.05)
-    GPIO.output(self.LED_DATA, True)
-    sleep(0.05)
-    GPIO.output(self.LED_DATA, False)
-    sleep(0.05)
-    GPIO.output(self.LED_ACTIVE, True)
-    sleep(0.05)
-    GPIO.output(self.LED_ACTIVE, False)
-    sleep(0.05)
-    GPIO.output(self.LED_DATA, True)
-    sleep(0.05)
-    GPIO.output(self.LED_DATA, False)
-    sleep(0.05)
-    GPIO.output(self.LED_PROGRAMMATIC, True)
-    sleep(0.05)
-    GPIO.output(self.LED_PROGRAMMATIC, False)
-    sleep(0.05)
-    GPIO.output(self.LED_MOBILE, True)
-    sleep(0.05)
-    GPIO.output(self.LED_MOBILE, False)
-    sleep(0.05)    
-    GPIO.output(self.LED_YEAH, True)
-    sleep(0.05)
-    GPIO.output(self.LED_YEAH, False)
-    sleep(0.05)
       
   def query_customer_kpis(self):
-    self.lcd.message("Fetching Data...")
+    self.blockLCD = True
+    thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
+    self.lcd.clear()
+    self.lcd.message("Updating Data...") 
     try:
       self.perform_request()
-      self.lcd.message("Fetching Data... \nSuccess")
-      sleep(0.2)
+      self.lcd.message("Updating Data... \nSuccess")
+      sleep(1)
       self.connectionOK = True
+      update_timer = Timer(3600, self.query_customer_kpis)
+      update_timer.start()
+      self.firstUpdate = False
     except requests.exceptions.RequestException as e:
-      self.lcd.message("Fetching Data... \nConnection Error")
+      self.lcd.message("Updating Data... \nConnection Error")
       print str(e)
       self.connectionOK = False
     self.lcd.clear()
+    self.blockLCD = False
 
   def perform_request(self):
     #get commented git tag as version
-    version = subprocess.check_output(["git" , "describe"])
-    headers = {'targetometer_version' : version}
-    r = requests.get('https://apistage.nugg.ad/info?device=' + self.deviceid, headers= headers, verify=False)
+    
+    headers = {'targetometer_version' : self.version}
+    r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
     self.data = r.json()
+    self.data_time = datetime.datetime.now()
     #debug
     #print self.data
     #print headers
@@ -139,69 +114,75 @@ class Targetometer:
     GPIO.output(self.LED_YEAH, self.data['yeah'])
     
   def show_customer_kpis(self):
+    kpis = 10
     duration = 3
+    clock_duration = 300 - (kpis * duration)
+    
+    #update leds
+    self.update_request_leds()
     
     #message and user
-    self.lcd.message(self.data['message'] + "\n" + self.data['user']) if self.buttonActionExecuting == False else 1
+    self.lcd.message(self.data['message'] + "\n" + self.data['user']) if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
     
     #last_record - needs better header/description 
     live = datetime.datetime.strptime(self.data['timestamps']['live'], '%Y-%m-%d %H:%M:%S')
     last = datetime.datetime.strptime(self.data['timestamps']['last_record'], '%Y-%m-%d %H:%M:%S')
-    diff = live-last
-    self.lcd.message("data mined: \n" + str(diff.seconds/60) + "min ago") if self.buttonActionExecuting == False else 1
+    server_diff = live-last
+    local_diff = datetime.datetime.now() - self.data_time
+    diff = server_diff + local_diff
+    self.lcd.message("data mined: \n" + str(diff.seconds/60) + "min ago") if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #active flights
-    self.lcd.message("active flights: \n" + str(self.data['flights']['active']) + " (" + str(self.data['flights']['active_change']) + ")") if self.buttonActionExecuting == False else 1
+    self.lcd.message("active flights: \n" + str(self.data['flights']['active']) + " (" + str(self.data['flights']['active_change']) + ")") if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #daily impressions
-    self.lcd.message("daily impressions: \n" + str(self.data['flights']['daily_impressions']) + " (" + str(self.data['flights']['daily_impressions_change']) + ")") if self.buttonActionExecuting == False else 1
+    self.lcd.message("daily impressions: \n" + str(self.data['flights']['daily_impressions']) + " (" + str(self.data['flights']['daily_impressions_change']) + ")") if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #hourly impressions
-    self.lcd.message("hourly impressions: \n" + str(self.data['flights']['hourly_impressions']) + " (" + str(self.data['flights']['hourly_impressions_change']) + ")") if self.buttonActionExecuting == False else 1
+    self.lcd.message("hourly impressions: \n" + str(self.data['flights']['hourly_impressions']) + " (" + str(self.data['flights']['hourly_impressions_change']) + ")") if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #surveys
     #if self.data['surveys']['count'] > 0:
-    self.lcd.message("surveys: \n" + str(self.data['surveys']['count']) + " (" + str(self.data['surveys']['count_change']) + ")") if self.buttonActionExecuting == False else 1
+    self.lcd.message("surveys: \n" + str(self.data['surveys']['count']) + " (" + str(self.data['surveys']['count_change']) + ")") if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #best_uplift
-    self.lcd.message("best uplift: \n" + "targeting: " + str(self.data['best_uplift']['targeting'])) if self.buttonActionExecuting == False else 1
+    self.lcd.message("best uplift: \n" + "targeting: " + str(self.data['best_uplift']['targeting'])) if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
-    self.lcd.message("best uplift: \n" + "branding: " + str(self.data['best_uplift']['branding'])) if self.buttonActionExecuting == False else 1
+    self.lcd.message("best uplift: \n" + "branding: " + str(self.data['best_uplift']['branding'])) if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #avg_response_time
-    self.lcd.message("avg response time: \n" + str(self.data['avg_response_time'])) if self.buttonActionExecuting == False else 1
+    self.lcd.message("avg response time: \n" + str(self.data['avg_response_time'])) if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #trending
-    self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour'])) if self.buttonActionExecuting == False else 1
+    self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour'])) if self.blockLCD == False else 1
     sleep(duration)
-    self.lcd.clear() if self.buttonActionExecuting == False else 1
+    self.lcd.clear() if self.blockLCD == False else 1
 
     #date and time loop
     t = 0
-    while(t < 60):
-      self.lcd.message(strftime("%a, %d %b %Y \n %H:%M:%S           ", localtime())) if self.buttonActionExecuting == False else 1
+    while(t < clock_duration):
+      self.lcd.message(strftime("%a, %d %b %Y \n %H:%M:%S           ", localtime())) if self.blockLCD == False else 1
       sleep(1)
       t = t+1
-    self.perform_request()
-    self.update_request_leds()
+  
     self.lcd.clear()
     self.show_customer_kpis() 
     
@@ -209,16 +190,28 @@ class Targetometer:
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(15, GPIO.RISING, callback=self.buttonCallback, bouncetime=200)
+    GPIO.add_event_detect(15, GPIO.RISING, callback=self.buttonCallback, bouncetime=1000)
 
   def buttonCallback(self, GPIO):
-    self.buttonActionExecuting = True
+    print time.time()
+    thread.start_new_thread(self.blink_yeah_led, (20,))
+    self.blockLCD = True
     self.lcd.clear()
-    self.lcd.message("Yeah!!!!")
-    sleep(3)
-    #todo yeah request
-    self.lcd.clear()
-    self.buttonActionExecuting = False
+    try:
+      headers = {'targetometer_version' : self.version}
+      r = requests.post("https://apistage.nugg.ad/users/" + self.device_id + "/yeah", headers = headers, verify=False)
+      if r.status_code == requests.codes.ok:
+        self.lcd.me_codessage("Yeah!!!! \n")
+      else:
+        r.raise_for_status()
+      sleep(3)
+      self.lcd.clear()
+      print r.status_code
+    except requests.exceptions.RequestException as e:
+      self.lcd.message("Connection\nProblem" +str(r.status_code))
+      sleep(3)
+      self.lcd.clear()
+    self.blockLCD = False
 
   #http://stackoverflow.com/questions/159137/getting-mac-address
   def get_hw_addr(self, ifname):
@@ -240,3 +233,66 @@ class Targetometer:
     GPIO.output(self.LED_MOBILE, False)
     GPIO.output(self.LED_PROGRAMMATIC, False)
     GPIO.output(self.LED_DATA, False)
+
+  def blink_active_led(self, repetitions):
+    count = 1
+    while count <= repetitions:
+      GPIO.output(self.LED_ACTIVE, True)
+      sleep(0.05)
+      GPIO.output(self.LED_ACTIVE, False)
+      sleep(0.05)
+      count = count + 1
+    GPIO.output(self.LED_ACTIVE, True)
+
+  def blink_yeah_led(self, repetitions):
+    count = 1
+    while count <= repetitions:
+      GPIO.output(self.LED_YEAH, True)
+      sleep(0.05)
+      GPIO.output(self.LED_YEAH, False)
+      sleep(0.05)
+      count = count + 1
+    GPIO.output(self.LED_YEAH, self.data['yeah'])
+
+
+  def blink_all_leds_like_kitt(self, repetitions):
+    count = 1
+    while count <= repetitions:
+      GPIO.output(self.LED_YEAH, True)
+      sleep(0.05)
+      GPIO.output(self.LED_YEAH, False)
+      sleep(0.05)
+      GPIO.output(self.LED_MOBILE, True)
+      sleep(0.05)
+      GPIO.output(self.LED_MOBILE, False)
+      sleep(0.05)
+      GPIO.output(self.LED_PROGRAMMATIC, True)
+      sleep(0.05)
+      GPIO.output(self.LED_PROGRAMMATIC, False)
+      sleep(0.05)
+      GPIO.output(self.LED_DATA, True)
+      sleep(0.05)
+      GPIO.output(self.LED_DATA, False)
+      sleep(0.05)
+      GPIO.output(self.LED_ACTIVE, True)
+      sleep(0.05)
+      GPIO.output(self.LED_ACTIVE, False)
+      sleep(0.05)
+      GPIO.output(self.LED_DATA, True)
+      sleep(0.05)
+      GPIO.output(self.LED_DATA, False)
+      sleep(0.05)
+      GPIO.output(self.LED_PROGRAMMATIC, True)
+      sleep(0.05)
+      GPIO.output(self.LED_PROGRAMMATIC, False)
+      sleep(0.05)
+      GPIO.output(self.LED_MOBILE, True)
+      sleep(0.05)
+      GPIO.output(self.LED_MOBILE, False)
+      sleep(0.05)    
+      if count == repetitions:
+        GPIO.output(self.LED_YEAH, True)
+        sleep(0.05)
+        GPIO.output(self.LED_YEAH, False)
+        sleep(0.05)
+      count = count + 1
