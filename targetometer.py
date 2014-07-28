@@ -32,22 +32,28 @@ class Targetometer:
   
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
-  version = subprocess.check_output(["git" , "describe"])
+  version = None
   device_id = "SOME_DEVICE_ID"
   connectionOK = False
   blockLCD = False
   firstUpdate = True
+  yeah_led = False
   
   #data
   data = None
   data_time = None
   
   def __init__(self):
+    os.chdir("/home/pi/2b")
+    print subprocess.check_output(["pwd"])
+    self.version = subprocess.check_output(["git" , "describe"])
+    
     t = self
     m = hashlib.md5()
     m.update(self.get_hw_addr('eth0'))
     #self.device_id =  m.hexdigest()
     print "deviceid: " + m.hexdigest()
+    print self.version
     self.gpio_setup()
     self.initialize_targetometer()
     self.query_customer_kpis()
@@ -88,6 +94,7 @@ class Targetometer:
       update_timer = Timer(3600, self.query_customer_kpis)
       update_timer.start()
       self.firstUpdate = False
+      self.evaluate_yeah()
     except requests.exceptions.RequestException as e:
       self.lcd.message("Updating Data... \nConnection Error")
       print str(e)
@@ -96,8 +103,6 @@ class Targetometer:
     self.blockLCD = False
 
   def perform_request(self):
-    #get commented git tag as version
-    
     headers = {'targetometer_version' : self.version}
     r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
     self.data = r.json()
@@ -106,12 +111,22 @@ class Targetometer:
     #print self.data
     #print headers
 
+  def evaluate_yeah(self):
+    print self.data['yeah']
+    if self.data['yeah'] != None:
+      last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
+      yeah_diff = datetime.datetime.now() - last_yeah
+      if yeah_diff.seconds < 3600:
+        yeah_led = True
+      else:
+        yeah_led = False
+    
   def update_request_leds(self):
     GPIO.output(self.LED_ACTIVE, True)
     GPIO.output(self.LED_MOBILE, self.data['mobile_requests_ok'])
     GPIO.output(self.LED_PROGRAMMATIC, self.data['programmatic_requests_ok'])
     GPIO.output(self.LED_DATA, self.data['data_requests_ok'])
-    GPIO.output(self.LED_YEAH, self.data['yeah'])
+    GPIO.output(self.LED_YEAH, self.yeah_led)
     
   def show_customer_kpis(self):
     kpis = 10
@@ -199,16 +214,16 @@ class Targetometer:
     self.lcd.clear()
     try:
       headers = {'targetometer_version' : self.version}
-      r = requests.post("https://apistage.nugg.ad/users/" + self.device_id + "/yeah", headers = headers, verify=False)
+      r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok:
-        self.lcd.me_codessage("Yeah!!!! \n")
+        self.lcd.me_codessage("Yeah!!!!")
       else:
         r.raise_for_status()
       sleep(3)
       self.lcd.clear()
       print r.status_code
     except requests.exceptions.RequestException as e:
-      self.lcd.message("Connection\nProblem" +str(r.status_code))
+      self.lcd.message("Connection\nProblem " +str(r.status_code))
       sleep(3)
       self.lcd.clear()
     self.blockLCD = False
@@ -252,7 +267,7 @@ class Targetometer:
       GPIO.output(self.LED_YEAH, False)
       sleep(0.05)
       count = count + 1
-    GPIO.output(self.LED_YEAH, self.data['yeah'])
+    #GPIO.output(self.LED_YEAH, self.data['yeah'])
 
 
   def blink_all_leds_like_kitt(self, repetitions):
