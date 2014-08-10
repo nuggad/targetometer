@@ -44,7 +44,8 @@ class Targetometer:
   data_time = None
   
   def __init__(self):
-    os.chdir("/home/pi/2b")
+    #os.chdir("/home/pi/2b")
+    os.chdir(os.path.dirname(__file__))
     print subprocess.check_output(["pwd"])
     self.version = subprocess.check_output(["git" , "describe"])
     
