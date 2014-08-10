@@ -4,7 +4,7 @@ targetometer
 ```
 ./prepare_image.sh
 ```
-put a SD Card in
+- put a SD Card in
 ```
 dd if=raspbian.img bs=10MB | pv -s 3G | sudo dd of=/dev/sdb bs=10MB
 ```
