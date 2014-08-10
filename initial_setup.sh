@@ -12,10 +12,7 @@ git clone https://github.com/binlan/targetometer.git
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
 aptitude update
-aptitude -y purge wolfram-engine
-aptitude -y safe-upgrade
-aptitude -y install cron-apt python-smbus python-dev
-aptitude -y clean
+aptitude -y install python-smbus python-dev
 
 curl -L -O http://python-distribute.org/distribute_setup.py
 python distribute_setup.py
@@ -31,7 +28,12 @@ echo 'i2c-dev' >> /etc/modules
 modprobe i2c-bcm2708
 modprobe i2c-dev
 
-# ab hier kann ich das display benutzen
+# ab hier koennte ich das display benutzen
+
+aptitude -y purge wolfram-engine
+aptitude -y safe-upgrade
+aptitude -y install cron-apt 
+aptitude -y clean
 
 cp /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 rm -f /etc/profile.d/raspi-config.sh
