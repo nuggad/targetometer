@@ -6,26 +6,28 @@ if [ $(id -u) -ne 0 ]; then
 fi
 
 # ich benutze einfach die LED´s um den install progress zu signalisieren ;)
-LED_YEAH = 16
-LED_MOBILE = 22
-LED_PROGRAMMATIC = 24
-LED_DATA = 26
-LED_ACTIVE = 18
-LED_MOOD = 11
+LED_YEAH=16
+LED_MOBILE=22
+LED_PROGRAMMATIC=24
+LED_DATA=26
+LED_ACTIVE=18
+LED_MOOD=11
 
-#up and running: 1.LED+MOOD an
-python led.py ${LED_MOOD}
-python led.py ${LED_YEAH}
 
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 git clone https://github.com/binlan/targetometer.git
+
+#up and running: 1.LED+MOOD an
+python /opt/targetometer/led.py ${LED_MOOD}
+python /opt/targetometer/led.py ${LED_YEAH}
+
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
 aptitude update
 aptitude -y install python-smbus python-dev
 
-python led.py ${LED_MOBILE}
+python /opt/targetometer/led.py ${LED_MOBILE}
 
 curl -L -O http://python-distribute.org/distribute_setup.py
 python distribute_setup.py
@@ -42,7 +44,7 @@ modprobe i2c-bcm2708
 modprobe i2c-dev
 
 # ab hier koennte ich das display benutzen
-python led.py ${LED_PROGRAMMATIC}
+python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
 
 aptitude -y purge wolfram-engine
 aptitude -y safe-upgrade
@@ -160,13 +162,13 @@ EOF
 
 	chmod +x /etc/init.d/resize2fs_once
 	update-rc.d resize2fs_once defaults
-	python led.py ${LED_DATA}
+	python /opt/targetometer/led.py ${LED_DATA}
 }
 
 resize_partition
 rm -f /opt/initial_setup.sh
 
 #fertig
-python led.py ${LED_ACTIVE}
+python /opt/targetometer/led.py ${LED_ACTIVE}
 sleep 5
 reboot
