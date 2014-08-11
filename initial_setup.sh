@@ -55,6 +55,10 @@ aptitude -y purge wolfram-engine
 python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
 
 aptitude -y safe-upgrade
+
+# ok, 4.LED an
+python /opt/targetometer/led.py ${LED_DATA}
+
 aptitude -y install cron-apt 
 aptitude -y clean
 
@@ -169,15 +173,13 @@ EOF
 
 	chmod +x /etc/init.d/resize2fs_once
 	update-rc.d resize2fs_once defaults
-	# ok, 4.LED an
-	python /opt/targetometer/led.py ${LED_DATA}
+	# ok, 5.LED an
+	python /opt/targetometer/led.py ${LED_ACTIVE}
 }
 
 resize_partition
 rm -f /opt/initial_setup.sh
 
 #fertig
-# ok, 5.LED an
-python /opt/targetometer/led.py ${LED_ACTIVE}
 sleep 5
 reboot
