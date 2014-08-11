@@ -18,15 +18,17 @@ cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 git clone https://github.com/binlan/targetometer.git
 
-#up and running: 1.LED+MOOD an
+#up and running: 1.MOOD-LED an
 python /opt/targetometer/led.py ${LED_MOOD}
-python /opt/targetometer/led.py ${LED_YEAH}
 
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
 aptitude update
+# ok, 1.LED an
+python /opt/targetometer/led.py ${LED_YEAH}
 aptitude -y install python-smbus python-dev
 
+# ok, 2.LED an
 python /opt/targetometer/led.py ${LED_MOBILE}
 
 curl -L -O http://python-distribute.org/distribute_setup.py
@@ -43,10 +45,15 @@ echo 'i2c-dev' >> /etc/modules
 modprobe i2c-bcm2708
 modprobe i2c-dev
 
+
 # ab hier koennte ich das display benutzen
-python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
+
 
 aptitude -y purge wolfram-engine
+
+# ok, 3.LED an
+python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
+
 aptitude -y safe-upgrade
 aptitude -y install cron-apt 
 aptitude -y clean
@@ -162,6 +169,7 @@ EOF
 
 	chmod +x /etc/init.d/resize2fs_once
 	update-rc.d resize2fs_once defaults
+	# ok, 4.LED an
 	python /opt/targetometer/led.py ${LED_DATA}
 }
 
@@ -169,6 +177,7 @@ resize_partition
 rm -f /opt/initial_setup.sh
 
 #fertig
+# ok, 5.LED an
 python /opt/targetometer/led.py ${LED_ACTIVE}
 sleep 5
 reboot
