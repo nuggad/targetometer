@@ -35,6 +35,7 @@ class Targetometer:
   version = None
   device_id = "SOME_DEVICE_ID"
   connectionOK = False
+  dataOK = False
   blockLCD = False
   firstUpdate = True
   yeah_led = False
@@ -57,11 +58,13 @@ class Targetometer:
     print self.version
     self.gpio_setup()
     self.initialize_targetometer()
-    self.query_customer_kpis()
     if self.connectionOK == True:
-      self.register_button()
-      self.show_customer_kpis()
-
+      self.query_customer_kpis()
+      if self.dataOK == True:
+        self.register_button()
+        self.show_customer_kpis()
+    GPIO.cleanup()
+    
   def initialize_targetometer(self):
     self.lcd.clear()
     self.lcd.createChar(1, self.logo_1_1)
@@ -81,42 +84,73 @@ class Targetometer:
     self.lcd.message("Targetometer\ninitializing...")
     sleep(2)
     self.lcd.clear()
-      
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+      s.connect(('google.com', 0))
+      self.lcd.message('IP address: \n' + s.getsockname()[0])
+      sleep(2)
+      self.lcd.clear()
+      self.connectionOK = True
+    except socket.error as e:
+      self.lcd.message('no connection \n to internet')  
+      sleep(3)
+      self.lcd.clear()
+      self.lcd.message('error no.' + str(e.errno))        
+      sleep(3)
+      self.lcd.clear()
+      self.connectionOK = False
+    
   def query_customer_kpis(self):
     self.blockLCD = True
     thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
     self.lcd.clear()
     self.lcd.message("Updating Data...") 
+    self.perform_request()
+    
+  def perform_request(self):
     try:
-      self.perform_request()
+      headers = {'targetometer_version' : self.version}
+      r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
+      if r.status_code != requests.codes.ok:
+        r.raise_for_status()
+      self.data = r.json()
+      self.data_time = datetime.datetime.now()
       self.lcd.message("Updating Data... \nSuccess")
       sleep(1)
-      self.connectionOK = True
+      self.dataOK = True
       update_timer = Timer(3600, self.query_customer_kpis)
       update_timer.start()
       self.firstUpdate = False
       self.evaluate_yeah()
+    except requests.exceptions.HTTPError:
+      self.lcd.clear()
+      self.lcd.message("invalid HTTP\nresponse "  + str(r.status_code))
+      sleep(3)
+      self.dataOK = False
+    except requests.exceptions.Timeout:
+      self.lcd.clear()
+      self.lcd.message("connection\ntimeout")
+      sleep(3)
+      self.dataOK = False
+    except requests.TooManyRedirects:
+      self.lcd.clear()
+      self.lcd.message("too many\nredirects")
+      sleep(3)
+      self.dataOK = False
     except requests.exceptions.RequestException as e:
-      self.lcd.message("Updating Data... \nConnection Error")
+      self.lcd.clear()
+      self.lcd.message("request \nexception")
+      sleep(3)
       print str(e)
-      self.connectionOK = False
+      self.dataOK = False
     self.lcd.clear()
     self.blockLCD = False
-
-  def perform_request(self):
-    headers = {'targetometer_version' : self.version}
-    r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
-    self.data = r.json()
-    self.data_time = datetime.datetime.now()
-    #debug
-    #print self.data
-    #print headers
-
+    
   def evaluate_yeah(self):
-    print self.data['yeah']
     if self.data['yeah'] != None:
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
-      yeah_diff = datetime.datetime.now() - last_yeah
+      yeah_diff = datetime.datetime.utcnow() - last_yeah
       if yeah_diff.seconds < 3600:
         yeah_led = True
       else:
@@ -258,7 +292,8 @@ class Targetometer:
       GPIO.output(self.LED_ACTIVE, False)
       sleep(0.05)
       count = count + 1
-    GPIO.output(self.LED_ACTIVE, True)
+    if self.dataOK:
+      GPIO.output(self.LED_ACTIVE, True)
 
   def blink_yeah_led(self, repetitions):
     count = 1
