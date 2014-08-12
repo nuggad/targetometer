@@ -1,7 +1,7 @@
 #!/bin/bash
 
 if [ $(id -u) -ne 0 ]; then
-	echo "Script must be run as root.'"
+	echo "script must be run as root."
 	exit 1
 fi
 
@@ -23,20 +23,25 @@ python /opt/targetometer/led.py ${LED_MOOD}
 
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
+echo '############ aptitude update ##############'
 aptitude update
 # ok, 1.LED an
 python /opt/targetometer/led.py ${LED_YEAH}
+echo '############ aptitude -y install python-smbus python-dev #######'
 aptitude -y install python-smbus python-dev
 
 # ok, 2.LED an
 python /opt/targetometer/led.py ${LED_MOBILE}
 
-curl -L -O http://python-distribute.org/distribute_setup.py
+echo '############ distribute_setup.py #############'
+curl -q -L -O http://python-distribute.org/distribute_setup.py
 python distribute_setup.py
-curl -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+echo '############ get-pip.py #############'
+curl -q -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
 python get-pip.py
-pip install virtualenv
-pip install requests
+echo '############ pip virtualenv, requests ####################'
+/usr/local/bin/pip install virtualenv
+/usr/local/bin/pip install requests
 rm distribute_setup.py get-pip.py
 
 echo 'i2c-bcm2708' >> /etc/modules
@@ -48,23 +53,25 @@ modprobe i2c-dev
 
 # ab hier koennte ich das display benutzen
 
-
+echo '############## wolfram raus #############'
 aptitude -y purge wolfram-engine
 
 # ok, 3.LED an
 python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
-
+echo '############## safe-upgrade #############'
 aptitude -y safe-upgrade
 
 # ok, 4.LED an
 python /opt/targetometer/led.py ${LED_DATA}
 
+echo '##############cront-apt################'
 aptitude -y install cron-apt 
 aptitude -y clean
 
-cp /usr/share/zoneinfo/Europe/Berlin /etc/localtime
-rm -f /etc/profile.d/raspi-config.sh
+cp -v /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+rm -vf /etc/profile.d/raspi-config.sh
 
+echo '############## config autorun ###########'
 cat <<\EOF > /opt/targetometer/runme.sh
 #!/bin/bash
 cd /opt/targetometer/
@@ -93,7 +100,7 @@ cat <<\EOF > /etc/rc.local
 exit 0
 EOF
 
-
+echo '##############crons apt,targetometer'
 cat <<\EOF > /etc/cron.d/cron-apt
 #
 # Regular cron jobs for the cron-apt package
@@ -178,9 +185,10 @@ EOF
 	python /opt/targetometer/led.py ${LED_ACTIVE}
 }
 
+echo '################## resize / #################'
 resize_partition
 rm -f /opt/initial_setup.sh
 
-#fertig
+echo '################# fertig ####################'
 sleep 5
 reboot
