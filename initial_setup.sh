@@ -71,6 +71,9 @@ aptitude -y clean
 cp -v /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 rm -vf /etc/profile.d/raspi-config.sh
 
+# write device id to login msg
+echo -n $(ip a l eth0|grep ether|sed 's/^\s*//'|cut -d ' ' -f2)|md5sum|cut -d ' ' -f1 >> /etc/issue.net
+
 echo '############## config autorun ###########'
 cat <<\EOF > /opt/targetometer/runme.sh
 #!/bin/bash
