@@ -29,7 +29,7 @@ if mountpoint -q ${MP}  ; then
 	cat <<\EOF > rc.local
 #!/bin/sh -e
 
-/opt/initial_setup.sh &
+/opt/initial_setup.sh 2>&1 > /opt/targetometer_install.log &
 
 exit 0
 EOF
