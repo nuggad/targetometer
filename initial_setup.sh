@@ -68,7 +68,8 @@ rm -f /etc/profile.d/raspi-config.sh
 cat <<\EOF > /opt/targetometer/runme.sh
 #!/bin/bash
 cd /opt/targetometer/
-./targetometer_start.py
+./targetometer_start.py &
+echo $! > /var/run/targetometer.pid
 EOF
 chmod 755 /opt/targetometer/runme.sh
 
@@ -87,7 +88,7 @@ cat <<\EOF > /etc/rc.local
 #
 # By default this script does nothing.
 
-/opt/targetometer/runme.sh &
+/opt/targetometer/runme.sh
 
 exit 0
 EOF
@@ -110,7 +111,7 @@ EOF
 
 cat <<\EOF > /etc/cron.d/targetometer
 # taeglich mittag
-0 12     * * *   root    test -d /opt/targetometer/ && (cd /opt/targetometer/ ; git pull)
+0 12     * * *   root    test -d /opt/targetometer/ && (cd /opt/targetometer/ ; git pull && kill $(cat /var/run/targetometer.pid) && /opt/targetometer/runme.sh )
 EOF
 
 resize_partition() {
