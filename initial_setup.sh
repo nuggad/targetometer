@@ -1,25 +1,47 @@
 #!/bin/bash
 
 if [ $(id -u) -ne 0 ]; then
-	echo "Script must be run as root.'"
+	echo "script must be run as root."
 	exit 1
 fi
+
+# ich benutze einfach die LED´s um den install progress zu signalisieren ;)
+LED_YEAH=16
+LED_MOBILE=22
+LED_PROGRAMMATIC=24
+LED_DATA=26
+LED_ACTIVE=18
+LED_MOOD=11
 
 
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 git clone https://github.com/binlan/targetometer.git
+
+#up and running: 1.MOOD-LED an
+python /opt/targetometer/led.py ${LED_MOOD}
+
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
+echo '############ aptitude update ##############'
 aptitude update
+# ok, 1.LED an
+python /opt/targetometer/led.py ${LED_YEAH}
+echo '############ aptitude -y install python-smbus python-dev #######'
 aptitude -y install python-smbus python-dev
 
-curl -L -O http://python-distribute.org/distribute_setup.py
+# ok, 2.LED an
+python /opt/targetometer/led.py ${LED_MOBILE}
+
+echo '############ distribute_setup.py #############'
+curl -q -L -O http://python-distribute.org/distribute_setup.py
 python distribute_setup.py
-curl -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+echo '############ get-pip.py #############'
+curl -q -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
 python get-pip.py
-pip install virtualenv
-pip install requests
+echo '############ pip virtualenv, requests ####################'
+/usr/local/bin/pip install virtualenv
+/usr/local/bin/pip install requests
 rm distribute_setup.py get-pip.py
 
 echo 'i2c-bcm2708' >> /etc/modules
@@ -28,20 +50,33 @@ echo 'i2c-dev' >> /etc/modules
 modprobe i2c-bcm2708
 modprobe i2c-dev
 
+
 # ab hier koennte ich das display benutzen
 
+echo '############## wolfram raus #############'
 aptitude -y purge wolfram-engine
+
+# ok, 3.LED an
+python /opt/targetometer/led.py ${LED_PROGRAMMATIC}
+echo '############## safe-upgrade #############'
 aptitude -y safe-upgrade
+
+# ok, 4.LED an
+python /opt/targetometer/led.py ${LED_DATA}
+
+echo '##############cront-apt################'
 aptitude -y install cron-apt 
 aptitude -y clean
 
-cp /usr/share/zoneinfo/Europe/Berlin /etc/localtime
-rm -f /etc/profile.d/raspi-config.sh
+cp -v /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+rm -vf /etc/profile.d/raspi-config.sh
 
+echo '############## config autorun ###########'
 cat <<\EOF > /opt/targetometer/runme.sh
 #!/bin/bash
 cd /opt/targetometer/
-./targetometer_start.py
+./targetometer_start.py &
+echo $! > /var/run/targetometer.pid
 EOF
 chmod 755 /opt/targetometer/runme.sh
 
@@ -60,12 +95,15 @@ cat <<\EOF > /etc/rc.local
 #
 # By default this script does nothing.
 
-/opt/targetometer/runme.sh &
+/opt/targetometer/runme.sh
+# write device id to login msg
+echo "Device ID:" $(echo -n $(ip a l eth0|grep ether|sed 's/^\s*//'|cut -d ' ' -f2)|md5sum|cut -d ' ' -f1) > /etc/motd
+echo -n $(ip a l eth0|grep ether|sed 's/^\s*//'|cut -d ' ' -f2)|md5sum|cut -d ' ' -f1 > /boot/DEVICE_ID.txt
 
 exit 0
 EOF
 
-
+echo '##############crons apt,targetometer'
 cat <<\EOF > /etc/cron.d/cron-apt
 #
 # Regular cron jobs for the cron-apt package
@@ -83,7 +121,7 @@ EOF
 
 cat <<\EOF > /etc/cron.d/targetometer
 # taeglich mittag
-0 12     * * *   root    test -d /opt/targetometer/ && (cd /opt/targetometer/ ; git pull)
+0 12     * * *   root    test -d /opt/targetometer/ && (cd /opt/targetometer/ ; git pull && kill $(cat /var/run/targetometer.pid) && /opt/targetometer/runme.sh )
 EOF
 
 resize_partition() {
@@ -146,8 +184,14 @@ EOF
 
 	chmod +x /etc/init.d/resize2fs_once
 	update-rc.d resize2fs_once defaults
+	# ok, 5.LED an
+	python /opt/targetometer/led.py ${LED_ACTIVE}
 }
 
+echo '################## resize / #################'
 resize_partition
 rm -f /opt/initial_setup.sh
+
+echo '################# fertig ####################'
+sleep 5
 reboot
