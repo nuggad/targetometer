@@ -16,6 +16,7 @@ import hashlib
 class Targetometer:
 
   #constants
+  LED_MOOD = 11
   LED_YEAH = 16
   LED_MOBILE = 22
   LED_PROGRAMMATIC = 24
@@ -45,7 +46,6 @@ class Targetometer:
   data_time = None
   
   def __init__(self):
-    #os.chdir("/home/pi/2b")
     os.chdir(os.path.dirname(__file__))
     print subprocess.check_output(["pwd"])
     self.version = subprocess.check_output(["git" , "describe"])
@@ -62,6 +62,7 @@ class Targetometer:
       self.query_customer_kpis()
       if self.dataOK == True:
         self.register_button()
+        thread.start_new_thread(self.heartbeat, ())
         self.show_customer_kpis()
     GPIO.cleanup()
     
@@ -272,12 +273,14 @@ class Targetometer:
   def gpio_setup(self):
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
+    GPIO.setup(self.LED_MOOD, GPIO.OUT)
     GPIO.setup(self.LED_YEAH, GPIO.OUT)
     GPIO.setup(self.LED_ACTIVE, GPIO.OUT)
     GPIO.setup(self.LED_MOBILE, GPIO.OUT)
     GPIO.setup(self.LED_PROGRAMMATIC, GPIO.OUT)
     GPIO.setup(self.LED_DATA, GPIO.OUT)
 
+    GPIO.output(self.LED_MOOD, False)
     GPIO.output(self.LED_YEAH, False)
     GPIO.output(self.LED_ACTIVE, False)
     GPIO.output(self.LED_MOBILE, False)
@@ -303,9 +306,23 @@ class Targetometer:
       GPIO.output(self.LED_YEAH, False)
       sleep(0.05)
       count = count + 1
-    #GPIO.output(self.LED_YEAH, self.data['yeah'])
-
-
+      
+  def heartbeat(self):
+    while (True):
+      if self.data['heartbeat'] > 0:
+        interval = (1/(self.data['heartbeat']*140))*60
+        self.blink_heartbeat()
+        sleep(interval)
+        
+  def blink_heartbeat(self):
+    GPIO.output(self.LED_MOOD, True)
+    sleep(0.07)
+    GPIO.output(self.LED_MOOD, False)
+    sleep(0.07)
+    GPIO.output(self.LED_MOOD, True)
+    sleep(0.25)
+    GPIO.output(self.LED_MOOD, False)
+    
   def blink_all_leds_like_kitt(self, repetitions):
     count = 1
     while count <= repetitions:
