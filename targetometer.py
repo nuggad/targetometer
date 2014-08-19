@@ -2,6 +2,7 @@
 
 from time import sleep, strftime, localtime
 from threading import Timer
+from multiprocessing import Process
 from Adafruit_CharLCDPlate import Adafruit_CharLCDPlate
 import RPi.GPIO as GPIO
 import fcntl, socket, struct
@@ -40,6 +41,7 @@ class Targetometer:
   blockLCD = False
   firstUpdate = True
   yeah_led = False
+  heartbeat_process = None
   
   #data
   data = None
@@ -62,7 +64,6 @@ class Targetometer:
       self.query_customer_kpis()
       if self.dataOK == True:
         self.register_button()
-        thread.start_new_thread(self.heartbeat, ())
         self.show_customer_kpis()
     GPIO.cleanup()
     
@@ -152,7 +153,7 @@ class Targetometer:
     if self.data['yeah'] != None:
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
       yeah_diff = datetime.datetime.utcnow() - last_yeah
-      if yeah_diff.seconds < 3600:
+      if yeah_diff.seconds < 86400:
         yeah_led = True
       else:
         yeah_led = False
@@ -163,6 +164,14 @@ class Targetometer:
     GPIO.output(self.LED_PROGRAMMATIC, self.data['programmatic_requests_ok'])
     GPIO.output(self.LED_DATA, self.data['data_requests_ok'])
     GPIO.output(self.LED_YEAH, self.yeah_led)
+
+  def disable_request_leds(self):
+    GPIO.output(self.LED_ACTIVE, False)
+    GPIO.output(self.LED_MOBILE, False)
+    GPIO.output(self.LED_PROGRAMMATIC, False)
+    GPIO.output(self.LED_DATA, False)
+    GPIO.output(self.LED_YEAH, False)
+    
     
   def show_customer_kpis(self):
     kpis = 10
@@ -171,6 +180,8 @@ class Targetometer:
     
     #update leds
     self.update_request_leds()
+    self.heartbeat_process = Process(target=self.heartbeat, args=(),)
+    self.heartbeat_process.start()
     
     #message and user
     self.lcd.message(self.data['message'] + "\n" + self.data['user']) if self.blockLCD == False else 1
@@ -226,6 +237,10 @@ class Targetometer:
     self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour'])) if self.blockLCD == False else 1
     sleep(duration)
     self.lcd.clear() if self.blockLCD == False else 1
+
+    #disable leds before going to sleep
+    self.heartbeat_process.terminate()
+    self.disable_request_leds()
 
     #date and time loop
     t = 0
