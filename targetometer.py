@@ -41,7 +41,10 @@ class Targetometer:
   blockLCD = False
   firstUpdate = True
   yeah_led = False
+
   heartbeat_process = None
+  idle_process = None
+  display_process = None
   
   #data
   data = None
@@ -64,8 +67,7 @@ class Targetometer:
       self.query_customer_kpis()
       if self.dataOK == True:
         self.register_button()
-        self.show_customer_kpis()
-    GPIO.cleanup()
+        self.start_working()
     
   def initialize_targetometer(self):
     self.lcd.clear()
@@ -171,13 +173,15 @@ class Targetometer:
     GPIO.output(self.LED_PROGRAMMATIC, False)
     GPIO.output(self.LED_DATA, False)
     GPIO.output(self.LED_YEAH, False)
-    
+
+  def start_working(self):
+    self.display_process = Process(target=self.show_customer_kpis, args=(),)
+    self.display_process.start()
     
   def show_customer_kpis(self):
-    kpis = 10
-    duration = 3
-    clock_duration = 300 - (kpis * duration)
     
+    duration = 3
+
     #update leds
     self.update_request_leds()
     self.heartbeat_process = Process(target=self.heartbeat, args=(),)
@@ -241,16 +245,21 @@ class Targetometer:
     #disable leds before going to sleep
     self.heartbeat_process.terminate()
     self.disable_request_leds()
+    self.lcd.clear()
+    self.idle_process = Process(target=self.idle, args=(),)
+    self.idle_process.start()
 
+  def idle(self):
+    clock_duration = 50
     #date and time loop
     t = 0
     while(t < clock_duration):
       self.lcd.message(strftime("%a, %d %b %Y \n %H:%M:%S           ", localtime())) if self.blockLCD == False else 1
       sleep(1)
       t = t+1
-  
     self.lcd.clear()
-    self.show_customer_kpis() 
+    self.display_process = Process(target=self.show_customer_kpis, args=(),)
+    self.display_process.start()
     
   def register_button(self):
     GPIO.setmode(GPIO.BOARD)
