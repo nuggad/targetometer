@@ -2,7 +2,8 @@
 
 from time import sleep, strftime, localtime
 from threading import Timer
-from multiprocessing import Process
+from threading import Thread
+from threading import Event
 from Adafruit_CharLCDPlate import Adafruit_CharLCDPlate
 import RPi.GPIO as GPIO
 import fcntl, socket, struct
@@ -38,13 +39,15 @@ class Targetometer:
   device_id = "SOME_DEVICE_ID"
   connectionOK = False
   dataOK = False
-  blockLCD = False
   firstUpdate = True
   yeah_led = False
 
-  heartbeat_process = None
-  idle_process = None
-  display_process = None
+  heartbeat_thread = None
+  heartbeat_stop_event = None
+  idle_thread = None
+  idle_stop_event = None
+  display_thread = None
+  display_stop_event = None
   
   #data
   data = None
@@ -106,7 +109,6 @@ class Targetometer:
       self.connectionOK = False
     
   def query_customer_kpis(self):
-    self.blockLCD = True
     thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
     self.lcd.clear()
     self.lcd.message("Updating Data...") 
@@ -149,7 +151,6 @@ class Targetometer:
       print str(e)
       self.dataOK = False
     self.lcd.clear()
-    self.blockLCD = False
     
   def evaluate_yeah(self):
     if self.data['yeah'] != None:
@@ -174,23 +175,45 @@ class Targetometer:
     GPIO.output(self.LED_DATA, False)
     GPIO.output(self.LED_YEAH, False)
 
-  def start_working(self):
-    self.display_process = Process(target=self.show_customer_kpis, args=(),)
-    self.display_process.start()
-    
-  def show_customer_kpis(self):
-    
-    duration = 3
+  def start_idling(self):
+    self.heartbeat_stop_event.set()
+    self.idle_stop_event = Event()
+    self.idle_thread = Thread(target=self.idle, args=(self.idle_stop_event,))
+    self.idle_thread.start()
 
+  def start_working(self):
+    if self.idle_stop_event != None:
+      self.idle_stop_event.set()
+    self.display_stop_event = Event()
+    self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
+    self.display_thread.start()
+    self.heartbeat_stop_event = Event()
+    self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
+    self.heartbeat_thread.start()
+
+  def stop_all_threads(self):
+    if self.idle_stop_event != None:
+      self.idle_stop_event.set()
+    if self.heartbeat_stop_event != None:
+      self.heartbeat_stop_event.set()
+    if self.display_stop_event != None:
+      self.display_stop_event.set()
+      
+  def show_customer_kpis(self, stop_event):
+    duration = 3
     #update leds
     self.update_request_leds()
-    self.heartbeat_process = Process(target=self.heartbeat, args=(),)
-    self.heartbeat_process.start()
+
+    if stop_event.is_set():
+      return
     
     #message and user
-    self.lcd.message(self.data['message'] + "\n" + self.data['user']) if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message(self.data['message'] + "\n" + self.data['user'])
+    stop_event.wait(duration)
+    self.lcd.clear()
+    
+    if stop_event.is_set():
+      return
     
     #last_record - needs better header/description 
     live = datetime.datetime.strptime(self.data['timestamps']['live'], '%Y-%m-%d %H:%M:%S')
@@ -198,85 +221,133 @@ class Targetometer:
     server_diff = live-last
     local_diff = datetime.datetime.now() - self.data_time
     diff = server_diff + local_diff
-    self.lcd.message("data mined: \n" + str(diff.seconds/60) + "min ago") if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("data mined: \n" + str(diff.seconds/60) + "min ago")
+    stop_event.wait(duration)
+    self.lcd.clear()
 
+    if stop_event.is_set():
+      return
+    
     #active flights
-    self.lcd.message("active flights: \n" + str(self.data['flights']['active']) + " (" + str(self.data['flights']['active_change']) + ")") if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("active flights: \n" + str(self.data['flights']['active']) + " (" + str(self.data['flights']['active_change']) + ")")
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      return
 
     #daily impressions
-    self.lcd.message("daily impressions: \n" + str(self.data['flights']['daily_impressions']) + " (" + str(self.data['flights']['daily_impressions_change']) + ")") if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("daily impressions: \n" + str(self.data['flights']['daily_impressions']) + " (" + str(self.data['flights']['daily_impressions_change']) + ")")
+    stop_event.wait(duration)
+    self.lcd.clear()
 
+    if stop_event.is_set():
+      return
+    
     #hourly impressions
-    self.lcd.message("hourly impressions: \n" + str(self.data['flights']['hourly_impressions']) + " (" + str(self.data['flights']['hourly_impressions_change']) + ")") if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("hourly impressions: \n" + str(self.data['flights']['hourly_impressions']) + " (" + str(self.data['flights']['hourly_impressions_change']) + ")")
+    stop_event.wait(duration)
+    self.lcd.clear()
 
-    #surveys
+    if stop_event.is_set():
+      return
+
+    #survey
     #if self.data['surveys']['count'] > 0:
-    self.lcd.message("surveys: \n" + str(self.data['surveys']['count']) + " (" + str(self.data['surveys']['count_change']) + ")") if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("surveys: \n" + str(self.data['surveys']['count']) + " (" + str(self.data['surveys']['count_change']) + ")")
+    stop_event.wait(duration)
+    self.lcd.clear()
 
+    if stop_event.is_set():
+      return
+    
     #best_uplift
-    self.lcd.message("best uplift: \n" + "targeting: " + str(self.data['best_uplift']['targeting'])) if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("best uplift: \n" + "targeting: " + str(self.data['best_uplift']['targeting']))
+    stop_event.wait(duration)
+    self.lcd.clear()
 
-    self.lcd.message("best uplift: \n" + "branding: " + str(self.data['best_uplift']['branding'])) if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    if stop_event.is_set():
+      return
+
+    self.lcd.message("best uplift: \n" + "branding: " + str(self.data['best_uplift']['branding']))
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      return
 
     #avg_response_time
-    self.lcd.message("avg response time: \n" + str(self.data['avg_response_time'])) if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("avg response time: \n" + str(self.data['avg_response_time']))
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      return
 
     #trending
-    self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour'])) if self.blockLCD == False else 1
-    sleep(duration)
-    self.lcd.clear() if self.blockLCD == False else 1
+    self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour']))
+    stop_event.wait(duration)
+    self.lcd.clear()
 
+    if stop_event.is_set():
+      return
     #disable leds before going to sleep
-    self.heartbeat_process.terminate()
     self.disable_request_leds()
     self.lcd.clear()
-    self.idle_process = Process(target=self.idle, args=(),)
-    self.idle_process.start()
 
-  def idle(self):
-    clock_duration = 50
+    if not stop_event.is_set():
+      self.start_idling()
+
+  def idle(self, stop_event):
+    clock_duration = 300
     #date and time loop
     t = 0
-    while(t < clock_duration):
-      self.lcd.message(strftime("%a, %d %b %Y \n %H:%M:%S           ", localtime())) if self.blockLCD == False else 1
-      sleep(1)
+    while(t < clock_duration and not stop_event.is_set()):
+      self.lcd.message(strftime("%a, %d %b %Y \n %H:%M:%S           ", localtime()))
+      stop_event.wait(1)
       t = t+1
     self.lcd.clear()
-    self.display_process = Process(target=self.show_customer_kpis, args=(),)
-    self.display_process.start()
+    if not stop_event.is_set():
+      self.start_working()
     
   def register_button(self):
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(15, GPIO.RISING, callback=self.buttonCallback, bouncetime=1000)
+    GPIO.add_event_detect(15, GPIO.RISING, callback=self.evaluate_button_press, bouncetime=300)
 
-  def buttonCallback(self, GPIO):
-    print time.time()
-    thread.start_new_thread(self.blink_yeah_led, (20,))
-    self.blockLCD = True
+  def evaluate_button_press(self, channel):
+    self.stop_all_threads()
+    timer = 0
+    text = "Long for Yeah!\n"
+    while True:
+      self.lcd.clear()
+      self.lcd.message(text)
+      if GPIO.input(channel) == True:
+        timer += 1
+        text += '*'
+      else:
+        if timer > 15:
+          print 'long'
+          self.send_yeah()
+          self.start_working()
+          break
+        else:
+          print 'short'
+          self.query_customer_kpis()
+          self.start_working()
+          break
+      sleep(0.1)
+    
+  def send_yeah(self):
     self.lcd.clear()
     try:
       headers = {'targetometer_version' : self.version}
+      thread.start_new_thread(self.blink_yeah_led, (20,))
       r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
-      if r.status_code == requests.codes.ok:
-        self.lcd.me_codessage("Yeah!!!!")
+      if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
+        self.lcd.message("Yeah!!!!")
+        print 'yeah'
       else:
         r.raise_for_status()
       sleep(3)
@@ -286,7 +357,6 @@ class Targetometer:
       self.lcd.message("Connection\nProblem " +str(r.status_code))
       sleep(3)
       self.lcd.clear()
-    self.blockLCD = False
 
   #http://stackoverflow.com/questions/159137/getting-mac-address
   def get_hw_addr(self, ifname):
@@ -331,12 +401,12 @@ class Targetometer:
       sleep(0.05)
       count = count + 1
       
-  def heartbeat(self):
-    while (True):
+  def heartbeat(self, stop_event):
+    while (not stop_event.is_set()):
       if self.data['heartbeat'] > 0:
         interval = (1/(self.data['heartbeat']*140))*60
         self.blink_heartbeat()
-        sleep(interval)
+        stop_event.wait(interval)
         
   def blink_heartbeat(self):
     GPIO.output(self.LED_MOOD, True)
