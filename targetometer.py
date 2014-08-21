@@ -122,7 +122,7 @@ class Targetometer:
         r.raise_for_status()
       self.data = r.json()
       self.data_time = datetime.datetime.now()
-      self.lcd.message("Updating Data... \nSuccess")
+      self.lcd.message("updating... \nSuccess")
       sleep(1)
       self.dataOK = True
       update_timer = Timer(3600, self.query_customer_kpis)
@@ -146,7 +146,7 @@ class Targetometer:
       self.dataOK = False
     except requests.exceptions.RequestException as e:
       self.lcd.clear()
-      self.lcd.message("request \nexception")
+      self.lcd.message("connection error")
       sleep(3)
       print str(e)
       self.dataOK = False
@@ -182,15 +182,18 @@ class Targetometer:
     self.idle_thread.start()
 
   def start_working(self):
-    if self.idle_stop_event != None:
-      self.idle_stop_event.set()
-    self.display_stop_event = Event()
-    self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
-    self.display_thread.start()
-    self.heartbeat_stop_event = Event()
-    self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
-    self.heartbeat_thread.start()
-
+    if self.dataOK == True:
+      if self.idle_stop_event != None:
+        self.idle_stop_event.set()
+      self.display_stop_event = Event()
+      self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
+      self.display_thread.start()
+      self.heartbeat_stop_event = Event()
+      self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
+      self.heartbeat_thread.start()
+    else:
+      self.lcd.message('please check \nthe connection')
+      
   def stop_all_threads(self):
     if self.idle_stop_event != None:
       self.idle_stop_event.set()
@@ -314,7 +317,7 @@ class Targetometer:
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(15, GPIO.RISING, callback=self.evaluate_button_press, bouncetime=300)
+    GPIO.add_event_detect(15, GPIO.RISING, callback=self.evaluate_button_press, bouncetime=100)
 
   def evaluate_button_press(self, channel):
     self.stop_all_threads()
@@ -325,7 +328,7 @@ class Targetometer:
       self.lcd.message(text)
       if GPIO.input(channel) == True:
         timer += 1
-        text += '*'
+        text += chr(219)
       else:
         if timer > 15:
           print 'long'
@@ -354,8 +357,10 @@ class Targetometer:
       self.lcd.clear()
       print r.status_code
     except requests.exceptions.RequestException as e:
-      self.lcd.message("Connection\nProblem " +str(r.status_code))
+      self.lcd.message("connection error\n")
       sleep(3)
+      #check if update is still possible
+      self.query_customer_kpis()
       self.lcd.clear()
 
   #http://stackoverflow.com/questions/159137/getting-mac-address
