@@ -187,9 +187,10 @@ class Targetometer:
       self.display_stop_event = Event()
       self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
       self.display_thread.start()
-      self.heartbeat_stop_event = Event()
-      self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
-      self.heartbeat_thread.start()
+      if self.heartbeat_thread == None:
+        self.heartbeat_stop_event = Event()
+        self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
+        self.heartbeat_thread.start()
     else:
       self.lcd.message('please check \nthe connection')
       
@@ -411,6 +412,7 @@ class Targetometer:
         interval = (1/(self.data['heartbeat']*140))*60
         self.blink_heartbeat()
         stop_event.wait(interval)
+    self.heartbeat_thread = None
         
   def blink_heartbeat(self):
     #GPIO.output(self.LED_MOOD, True)
