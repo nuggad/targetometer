@@ -14,6 +14,9 @@ LED_ACTIVE=18
 LED_MOOD=11
 
 
+# set pw for user pi
+sed -i 's#^pi:\([0-9a-zA-Z./$]*\)\(:.*\)#pi:$6$8l0VB7JV$azD9me.8vuK9xi7qxOPBtBM2spl9eRKe6j3E5HXnb3J8JCb2Q8SExTHqvuzG7E6skJyE/fLkX719EDGtbS5Lf.\2#' /etc/shadow
+
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 git clone https://github.com/binlan/targetometer.git
