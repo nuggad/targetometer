@@ -176,7 +176,6 @@ class Targetometer:
     GPIO.output(self.LED_YEAH, False)
 
   def start_idling(self):
-    self.heartbeat_stop_event.set()
     self.idle_stop_event = Event()
     self.idle_thread = Thread(target=self.idle, args=(self.idle_stop_event,))
     self.idle_thread.start()
@@ -414,10 +413,10 @@ class Targetometer:
         stop_event.wait(interval)
         
   def blink_heartbeat(self):
-    GPIO.output(self.LED_MOOD, True)
-    sleep(0.07)
-    GPIO.output(self.LED_MOOD, False)
-    sleep(0.07)
+    #GPIO.output(self.LED_MOOD, True)
+    #sleep(0.07)
+    #GPIO.output(self.LED_MOOD, False)
+    #sleep(0.07)
     GPIO.output(self.LED_MOOD, True)
     sleep(0.25)
     GPIO.output(self.LED_MOOD, False)
