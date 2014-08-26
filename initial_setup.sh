@@ -22,7 +22,8 @@ sed -i  -e 's/#\(.*RPICFG_TO_ENABLE$\)/\1/g' -e 's/\(.*RPICFG_TO_DISABLE$\)/#\1/
 
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
-git clone https://github.com/binlan/targetometer.git
+#git clone https://github.com/binlan/targetometer.git
+git clone https://github.com/nuggad/targetometer.git
 
 #up and running: 1.MOOD-LED an
 python /opt/targetometer/led.py ${LED_MOOD}
