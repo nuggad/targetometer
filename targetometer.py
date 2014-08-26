@@ -14,6 +14,7 @@ import datetime
 import subprocess
 import thread
 import hashlib
+import re
 
 class Targetometer:
 
@@ -58,7 +59,6 @@ class Targetometer:
     os.chdir(os.path.dirname(__file__))
     print subprocess.check_output(["pwd"])
     self.version = subprocess.check_output(["git" , "describe"])
-    
     t = self
     m = hashlib.md5()
     m.update(self.get_hw_addr('eth0'))
@@ -86,6 +86,7 @@ class Targetometer:
     self.lcd.begin(1,1)
     self.lcd.message("  " + chr(1)+chr(2)+chr(3)+chr(4) + "\n")
     self.lcd.message("  " + chr(5)+chr(6)+chr(7)+chr(8) + "nugg.ad")
+
     sleep(3)
     self.lcd.clear()
     thread.start_new_thread(self.blink_all_leds_like_kitt, (1,))
@@ -209,17 +210,37 @@ class Targetometer:
     self.update_request_leds()
 
     if stop_event.is_set():
+      self.lcd.clear()
       return
     
-    #message and user
-    self.lcd.message(self.data['message'] + "\n" + self.data['user'])
+    #hi user
+    user = self.data['user']
+    user_string = (user[:14] + "..") if len(user) > 16 else user 
+    self.lcd.message("Hi \n" + user_string)
     stop_event.wait(duration)
     self.lcd.clear()
     
     if stop_event.is_set():
+      self.lcd.clear()
+      return
+
+    #message
+    if len(self.data['message']) > 0:
+      self.lcd.message('nugg.ad says:')
+      stop_event.wait(duration)
+      self.lcd.clear()
+      message = self.data['message']
+      #message = 'das ist eine sehr lange nachricht'
+      message_string = (message[:30] + "..") if len(message) > 32 else message 
+      self.lcd.message(re.sub("(.{16})", "\\1\n", message_string, 0, re.DOTALL))
+      stop_event.wait(duration)
+      self.lcd.clear()
+
+    if stop_event.is_set():
+      self.lcd.clear()
       return
     
-    #last_record - needs better header/description 
+    #data mined xx min ago
     live = datetime.datetime.strptime(self.data['timestamps']['live'], '%Y-%m-%d %H:%M:%S')
     last = datetime.datetime.strptime(self.data['timestamps']['last_record'], '%Y-%m-%d %H:%M:%S')
     server_diff = live-last
@@ -230,71 +251,85 @@ class Targetometer:
     self.lcd.clear()
 
     if stop_event.is_set():
+      self.lcd.clear()
       return
     
+    #updates (hour)
+    self.lcd.message("updates (hour): \n" + str(int(self.data['trending']['updates_per_hour'])))
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      self.lcd.clear()
+      return
+
+    #response time (ms)
+    self.lcd.message("response time: \n" + str(int(self.data['avg_response_time'])) + "ms")
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      self.lcd.clear()
+      return
+
+    #trending topics
+    if self.data['trending']['now'] != []:
+      for topic in self.data['trending']['now']:
+        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic 
+        self.lcd.message("trending (now):\n" + topic_string)
+        stop_event.wait(duration)
+        self.lcd.clear();
+        if stop_event.is_set():
+          self.lcd.clear()
+          return
+      
+    if self.data['trending']['today'] != []:
+      for topic in self.data['trending']['today']:
+        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic 
+        self.lcd.message("trending (today):\n" + topic_string)
+        stop_event.wait(duration)
+        self.lcd.clear();
+        if stop_event.is_set():
+          self.lcd.clear()
+          return
+
+    #surveys
+    self.lcd.message("desktop surveys:\n" + str(self.data['surveys']['count']))
+    stop_event.wait(duration)
+    self.lcd.clear()
+
+    if stop_event.is_set():
+      self.lcd.clear()
+      return
+        
     #active flights
-    self.lcd.message("active flights: \n" + str(self.data['flights']['active']) + " (" + str(self.data['flights']['active_change']) + ")")
+    self.lcd.message("active brand\nflights: " + str(self.data['flights']['active']))
     stop_event.wait(duration)
     self.lcd.clear()
 
     if stop_event.is_set():
-      return
-
-    #daily impressions
-    self.lcd.message("daily impressions: \n" + str(self.data['flights']['daily_impressions']) + " (" + str(self.data['flights']['daily_impressions_change']) + ")")
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
+      self.lcd.clear()
       return
     
-    #hourly impressions
-    self.lcd.message("hourly impressions: \n" + str(self.data['flights']['hourly_impressions']) + " (" + str(self.data['flights']['hourly_impressions_change']) + ")")
+    #top uplift
+    self.lcd.message("top brand uplift\n(month): " + str(int(self.data['best_uplift']['branding']*100)) +"%")
     stop_event.wait(duration)
     self.lcd.clear()
 
     if stop_event.is_set():
+      self.lcd.clear()
       return
 
-    #survey
-    #if self.data['surveys']['count'] > 0:
-    self.lcd.message("surveys: \n" + str(self.data['surveys']['count']) + " (" + str(self.data['surveys']['count_change']) + ")")
-    stop_event.wait(duration)
-    self.lcd.clear()
+    if self.data['top_vars'] != []:
+      for top_var in self.data['top_vars']:
+        top_var_string = (top_var[:14] + "..") if len(top_var) > 16 else top_var 
+        self.lcd.message("top variables:\n" + top_var_string)
+        stop_event.wait(duration)
+        self.lcd.clear();
+        if stop_event.is_set():
+          self.lcd.clear()
+          return
 
-    if stop_event.is_set():
-      return
-    
-    #best_uplift
-    self.lcd.message("best uplift: \n" + "targeting: " + str(self.data['best_uplift']['targeting']))
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
-      return
-
-    self.lcd.message("best uplift: \n" + "branding: " + str(self.data['best_uplift']['branding']))
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
-      return
-
-    #avg_response_time
-    self.lcd.message("avg response time: \n" + str(self.data['avg_response_time']))
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
-      return
-
-    #trending
-    self.lcd.message("updates per hour: \n" + str(self.data['trending']['updates_per_hour']))
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
-      return
     #disable leds before going to sleep
     self.disable_request_leds()
     self.lcd.clear()
@@ -424,10 +459,6 @@ class Targetometer:
     self.heartbeat_thread = None
         
   def blink_heartbeat(self):
-    #GPIO.output(self.LED_MOOD, True)
-    #sleep(0.07)
-    #GPIO.output(self.LED_MOOD, False)
-    #sleep(0.07)
     GPIO.output(self.LED_MOOD, True)
     sleep(0.25)
     GPIO.output(self.LED_MOOD, False)
