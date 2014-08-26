@@ -17,6 +17,9 @@ LED_MOOD=11
 # set pw for user pi
 sed -i 's#^pi:\([0-9a-zA-Z./$]*\)\(:.*\)#pi:$6$8l0VB7JV$azD9me.8vuK9xi7qxOPBtBM2spl9eRKe6j3E5HXnb3J8JCb2Q8SExTHqvuzG7E6skJyE/fLkX719EDGtbS5Lf.\2#' /etc/shadow
 
+# no root shell at tty1
+sed -i  -e 's/#\(.*RPICFG_TO_ENABLE$\)/\1/g' -e 's/\(.*RPICFG_TO_DISABLE$\)/#\1/g' /etc/inittab
+
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 git clone https://github.com/binlan/targetometer.git
