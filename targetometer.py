@@ -41,6 +41,7 @@ class Targetometer:
   dataOK = False
   firstUpdate = True
   yeah_led = False
+  last_button_press = None
 
   heartbeat_thread = None
   heartbeat_stop_event = None
@@ -317,30 +318,38 @@ class Targetometer:
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(15, GPIO.RISING, callback=self.evaluate_button_press, bouncetime=100)
+    GPIO.add_event_detect(15, GPIO.RISING, callback=self.button_callback, bouncetime=100)
 
-  def evaluate_button_press(self, channel):
-    self.stop_all_threads()
-    timer = 0
-    text = "Long for Yeah!\n"
-    while True:
-      self.lcd.clear()
-      self.lcd.message(text)
-      if GPIO.input(channel) == True:
-        timer += 1
-        text += chr(219)
-      else:
-        if timer > 15:
-          print 'long'
-          self.send_yeah()
-          self.start_working()
-          break
+  def button_callback(self, channel):
+    if self.last_button_press == None:
+      self.evaluate_button_press(channel)
+    else:
+      if time.time() - self.last_button_press > 3:
+        self.evaluate_button_press(channel)
+        
+  def evaluate_button_press(self, channel):  
+      self.last_button_press = time.time()
+      self.stop_all_threads()
+      timer = 0
+      text = "Long for Yeah!\n"
+      while True:
+        self.lcd.clear()
+        self.lcd.message(text)
+        if GPIO.input(channel) == True:
+          timer += 1
+          text += chr(219)
         else:
-          print 'short'
-          self.query_customer_kpis()
-          self.start_working()
-          break
-      sleep(0.1)
+          if timer > 15:
+            print 'long'
+            self.send_yeah()
+            self.start_working()
+            break
+          else:
+            print 'short'
+            self.query_customer_kpis()
+            self.start_working()
+            break
+        sleep(0.1)
     
   def send_yeah(self):
     self.lcd.clear()
