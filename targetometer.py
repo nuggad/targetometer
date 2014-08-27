@@ -370,8 +370,6 @@ class Targetometer:
     GPIO.remove_event_detect(15)
 
   def button_callback(self, channel):
-    if self.last_button_press != None:
-      print str(time.time() - self.last_button_press)
     if self.last_button_press == None:
       self.evaluate_button_press(channel)
     else:
@@ -473,12 +471,7 @@ class Targetometer:
 	GPIO.output(self.LED_MOOD, False)
         stop_event.wait(interval*0.3)
     self.heartbeat_thread = None
-        
-  def blink_heartbeat(self):
-    GPIO.output(self.LED_MOOD, True)
-    sleep(0.37)
-    GPIO.output(self.LED_MOOD, False)
-    
+  
   def blink_all_leds_like_kitt(self, repetitions):
     count = 1
     while count <= repetitions:
