@@ -36,6 +36,7 @@ class Targetometer:
   
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
+  backlight_color = lcd.BLUE
   version = None
   device_id = "SOME_DEVICE_ID"
   connectionOK = False
@@ -43,7 +44,9 @@ class Targetometer:
   firstUpdate = True
   yeah_led = False
   last_button_press = None
-
+  #update_timer = None  
+  busy = False
+ 
   heartbeat_thread = None
   heartbeat_stop_event = None
   idle_thread = None
@@ -62,10 +65,10 @@ class Targetometer:
     t = self
     m = hashlib.md5()
     m.update(self.get_hw_addr('eth0'))
-    #self.device_id =  m.hexdigest()
     print "deviceid: " + m.hexdigest()
-    print self.version
+    print "version : " + self.version
     self.gpio_setup()
+    self.lcd.backlight(self.backlight_color)
     self.initialize_targetometer()
     if self.connectionOK == True:
       self.query_customer_kpis()
@@ -110,10 +113,17 @@ class Targetometer:
       self.lcd.clear()
       self.connectionOK = False
     
+  def do_scheduled_update(self):
+    self.stop_all_threads()
+    self.unregister_button()
+    self.query_customer_kpis()
+    self.register_button()
+    self.start_working() 
+
   def query_customer_kpis(self):
     thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
     self.lcd.clear()
-    self.lcd.message("Updating Data...") 
+    self.lcd.message("Updating Data...")
     self.perform_request()
     
   def perform_request(self):
@@ -124,11 +134,11 @@ class Targetometer:
         r.raise_for_status()
       self.data = r.json()
       self.data_time = datetime.datetime.now()
-      self.lcd.message("updating... \nSuccess")
+      self.lcd.message("Updating Data... \nSuccess")
       sleep(1)
       self.dataOK = True
-      update_timer = Timer(3600, self.query_customer_kpis)
-      update_timer.start()
+      timer = Timer(3600, self.do_scheduled_update)
+      timer.start()
       self.firstUpdate = False
       self.evaluate_yeah()
     except requests.exceptions.HTTPError:
@@ -354,39 +364,42 @@ class Targetometer:
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(15, GPIO.IN, pull_up_down=GPIO.PUD_DOWN)
-    GPIO.add_event_detect(15, GPIO.RISING, callback=self.button_callback, bouncetime=100)
+    GPIO.add_event_detect(15, GPIO.RISING, callback=self.button_callback, bouncetime=8000)
+
+  def unregister_button(self):
+    GPIO.remove_event_detect(15)
 
   def button_callback(self, channel):
+    if self.last_button_press != None:
+      print str(time.time() - self.last_button_press)
     if self.last_button_press == None:
       self.evaluate_button_press(channel)
     else:
-      if time.time() - self.last_button_press > 3:
+      if (time.time() - self.last_button_press) > 3:
         self.evaluate_button_press(channel)
-        
-  def evaluate_button_press(self, channel):  
-      self.last_button_press = time.time()
-      self.stop_all_threads()
-      timer = 0
-      text = "Long for Yeah!\n"
-      while True:
-        self.lcd.clear()
-        self.lcd.message(text)
-        if GPIO.input(channel) == True:
-          timer += 1
-          text += chr(219)
+	        
+  def evaluate_button_press(self, channel):
+    self.last_button_press = time.time()
+    self.stop_all_threads()   
+    timer = 0
+    text = "Long for Yeah!\n"
+    while True:
+      self.lcd.clear()
+      self.lcd.message(text)
+      if GPIO.input(channel) == True:
+        timer += 1
+        text += chr(219)
+      else:
+        if timer > 15:
+          self.send_yeah()
+          self.start_working()
+          break
         else:
-          if timer > 15:
-            print 'long'
-            self.send_yeah()
-            self.start_working()
-            break
-          else:
-            print 'short'
-            self.query_customer_kpis()
-            self.start_working()
-            break
-        sleep(0.1)
-    
+          self.query_customer_kpis()
+          self.start_working()
+          break
+      sleep(0.1)      
+  
   def send_yeah(self):
     self.lcd.clear()
     try:
@@ -394,13 +407,11 @@ class Targetometer:
       thread.start_new_thread(self.blink_yeah_led, (20,))
       r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
-        self.lcd.message("Yeah!!!!")
-        print 'yeah'
+        self.lcd.message("Yeah!!!!") 
       else:
         r.raise_for_status()
       sleep(3)
       self.lcd.clear()
-      print r.status_code
     except requests.exceptions.RequestException as e:
       self.lcd.message("connection error\n")
       sleep(3)
@@ -445,8 +456,10 @@ class Targetometer:
   def blink_yeah_led(self, repetitions):
     count = 1
     while count <= repetitions:
+      self.lcd.backlight(self.lcd.RED)
       GPIO.output(self.LED_YEAH, True)
       sleep(0.05)
+      self.lcd.backlight(self.backlight_color)
       GPIO.output(self.LED_YEAH, False)
       sleep(0.05)
       count = count + 1
@@ -455,13 +468,15 @@ class Targetometer:
     while (not stop_event.is_set()):
       if self.data['heartbeat'] > 0:
         interval = (1/(self.data['heartbeat']*140))*60
-        self.blink_heartbeat()
-        stop_event.wait(interval)
+        GPIO.output(self.LED_MOOD, True)
+        stop_event.wait(interval*0.7)
+	GPIO.output(self.LED_MOOD, False)
+        stop_event.wait(interval*0.3)
     self.heartbeat_thread = None
         
   def blink_heartbeat(self):
     GPIO.output(self.LED_MOOD, True)
-    sleep(0.25)
+    sleep(0.37)
     GPIO.output(self.LED_MOOD, False)
     
   def blink_all_leds_like_kitt(self, repetitions):
