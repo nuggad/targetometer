@@ -36,7 +36,6 @@ class Targetometer:
   
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
-  backlight_color = lcd.BLUE
   version = None
   device_id = "SOME_DEVICE_ID"
   connectionOK = False
@@ -68,7 +67,6 @@ class Targetometer:
     print "deviceid: " + m.hexdigest()
     print "version : " + self.version
     self.gpio_setup()
-    self.lcd.backlight(self.backlight_color)
     self.initialize_targetometer()
     if self.connectionOK == True:
       self.query_customer_kpis()
@@ -454,10 +452,8 @@ class Targetometer:
   def blink_yeah_led(self, repetitions):
     count = 1
     while count <= repetitions:
-      self.lcd.backlight(self.lcd.RED)
       GPIO.output(self.LED_YEAH, True)
       sleep(0.05)
-      self.lcd.backlight(self.backlight_color)
       GPIO.output(self.LED_YEAH, False)
       sleep(0.05)
       count = count + 1
