@@ -43,16 +43,16 @@ class Targetometer:
   firstUpdate = True
   yeah_led = False
   last_button_press = None
-  #update_timer = None  
-  busy = False
- 
+  
   heartbeat_thread = None
   heartbeat_stop_event = None
   idle_thread = None
   idle_stop_event = None
   display_thread = None
   display_stop_event = None
-  
+  update_thread = None
+  update_stop_event = None  
+
   #data
   data = None
   data_time = None
@@ -60,10 +60,11 @@ class Targetometer:
   def __init__(self):
     os.chdir(os.path.dirname(__file__))
     print subprocess.check_output(["pwd"])
-    self.version = subprocess.check_output(["git" , "rev-parse", "HEAD"])
+    self.version = subprocess.check_output(["git" , "rev-parse", "HEAD"]).strip()
     t = self
     m = hashlib.md5()
     m.update(self.get_hw_addr('eth0'))
+    #self.device_id = m.hexdigest()
     print "deviceid: " + m.hexdigest()
     print "version : " + self.version
     self.gpio_setup()
@@ -87,7 +88,6 @@ class Targetometer:
     self.lcd.begin(1,1)
     self.lcd.message("  " + chr(1)+chr(2)+chr(3)+chr(4) + "\n")
     self.lcd.message("  " + chr(5)+chr(6)+chr(7)+chr(8) + "nugg.ad")
-
     sleep(3)
     self.lcd.clear()
     thread.start_new_thread(self.blink_all_leds_like_kitt, (1,))
@@ -110,10 +110,20 @@ class Targetometer:
       sleep(3)
       self.lcd.clear()
       self.connectionOK = False
-    
+
+  def update_timer(self, stop_event):
+    update_interval = 3600
+    timer = 0
+    while (timer < update_interval and not stop_event.is_set()):
+      stop_event.wait(1)  
+      timer += 1
+      if (timer == update_interval-10):
+        self.unregister_button()
+    if timer == update_interval:
+      self.do_scheduled_update()
+
   def do_scheduled_update(self):
     self.stop_all_threads()
-    self.unregister_button()
     self.query_customer_kpis()
     self.register_button()
     self.start_working() 
@@ -135,8 +145,13 @@ class Targetometer:
       self.lcd.message("Updating Data... \nSuccess")
       sleep(1)
       self.dataOK = True
-      timer = Timer(3600, self.do_scheduled_update)
-      timer.start()
+      if self.update_thread != None:
+        if self.update_thread.is_alive() == True:
+	  self.update_stop_event.set()
+      self.update_stop_event = Event()
+      self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
+      self.update_thread.daemon = False
+      self.update_thread.start()
       self.firstUpdate = False
       self.evaluate_yeah()
     except requests.exceptions.HTTPError:
@@ -194,13 +209,17 @@ class Targetometer:
     if self.dataOK == True:
       if self.idle_stop_event != None:
         self.idle_stop_event.set()
-      self.display_stop_event = Event()
-      self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
-      self.display_thread.start()
-      if self.heartbeat_thread == None:
-        self.heartbeat_stop_event = Event()
-        self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
-        self.heartbeat_thread.start()
+      if self.data['timestamps']['last_record'] == None:
+        self.lcd.message("no data yet...\nbutton for retry")
+        sleep(3)
+      else:
+        self.display_stop_event = Event()
+        self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
+        self.display_thread.start()
+        if self.heartbeat_thread == None:
+          self.heartbeat_stop_event = Event()
+          self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
+          self.heartbeat_thread.start()
     else:
       self.lcd.message('please check \nthe connection')
       
