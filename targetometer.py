@@ -135,7 +135,6 @@ class Targetometer:
     self.perform_request()
     
   def perform_request(self):
-    self.device_id = " dasd"
     try:
       headers = {'targetometer_version' : self.version}
       r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
