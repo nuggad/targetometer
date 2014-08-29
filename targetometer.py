@@ -144,7 +144,7 @@ class Targetometer:
       if 'error' in self.data:
         self.lcd.clear()
         self.lcd.message("unkown device\ncontact nugg.ad")
-        sleep(30)
+        sleep(604800)
       else: 	
         self.data_time = datetime.datetime.now()
         self.lcd.message("Updating Data... \nSuccess")
