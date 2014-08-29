@@ -135,6 +135,7 @@ class Targetometer:
     self.perform_request()
     
   def perform_request(self):
+    self.device_id = " dasd"
     try:
       headers = {'targetometer_version' : self.version}
       r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
@@ -144,7 +145,7 @@ class Targetometer:
       if 'error' in self.data:
         self.lcd.clear()
         self.lcd.message("unkown device\ncontact nugg.ad")
-        sleep(30)
+        sleep(604800)
       else: 	
         self.data_time = datetime.datetime.now()
         self.lcd.message("Updating Data... \nSuccess")
