@@ -37,7 +37,7 @@ class Targetometer:
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
   version = None
-  device_id = "SOME_DEVICE_ID"
+  device_id = None
   connectionOK = False
   dataOK = False
   firstUpdate = True
@@ -64,8 +64,8 @@ class Targetometer:
     t = self
     m = hashlib.md5()
     m.update(self.get_hw_addr('eth0'))
-    #self.device_id = m.hexdigest()
-    print "deviceid: " + m.hexdigest()
+    self.device_id = m.hexdigest()
+    print "deviceid: " + self.device_id
     print "version : " + self.version
     self.gpio_setup()
     self.initialize_targetometer()
@@ -141,19 +141,24 @@ class Targetometer:
       if r.status_code != requests.codes.ok:
         r.raise_for_status()
       self.data = r.json()
-      self.data_time = datetime.datetime.now()
-      self.lcd.message("Updating Data... \nSuccess")
-      sleep(1)
-      self.dataOK = True
-      if self.update_thread != None:
-        if self.update_thread.is_alive() == True:
-	  self.update_stop_event.set()
-      self.update_stop_event = Event()
-      self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
-      self.update_thread.daemon = False
-      self.update_thread.start()
-      self.firstUpdate = False
-      self.evaluate_yeah()
+      if 'error' in self.data:
+        self.lcd.clear()
+        self.lcd.message("unkown device\ncontact nugg.ad")
+        sleep(30)
+      else: 	
+        self.data_time = datetime.datetime.now()
+        self.lcd.message("Updating Data... \nSuccess")
+        sleep(1)
+        self.dataOK = True
+        if self.update_thread != None:
+          if self.update_thread.is_alive() == True:
+	    self.update_stop_event.set()
+        self.update_stop_event = Event()
+        self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
+        self.update_thread.daemon = False
+        self.update_thread.start()
+        self.firstUpdate = False
+        self.evaluate_yeah()
     except requests.exceptions.HTTPError:
       self.lcd.clear()
       self.lcd.message("invalid HTTP\nresponse "  + str(r.status_code))
