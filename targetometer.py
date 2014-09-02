@@ -109,8 +109,19 @@ class Targetometer:
       self.lcd.message('error no.' + str(e.errno))        
       sleep(3)
       self.lcd.clear()
+      self.lcd.message('automatic  retry\n in 60s')
+      t = Thread(target=self.init_timer, args=(),)
+      t.start()
       self.connectionOK = False
 
+  def init_timer(self):
+    retry_interval = 60
+    timer = 0
+    while timer < retry_interval:
+      sleep(1)
+      timer += 1
+    self.__init__()
+ 
   def update_timer(self, stop_event):
     update_interval = 3600
     timer = 0
@@ -124,6 +135,7 @@ class Targetometer:
 
   def do_scheduled_update(self):
     self.stop_all_threads()
+    sleep(1)
     self.query_customer_kpis()
     self.register_button()
     self.start_working() 
@@ -155,13 +167,13 @@ class Targetometer:
         self.lcd.clear()
         self.lcd.message("unkown device\ncontact nugg.ad")
         self.dataOK = False
-        self.start_update_thread()
+        #self.start_update_thread()
       else: 	
         self.data_time = datetime.datetime.now()
         self.lcd.message("updating data... \nsuccess")
         sleep(1)
         self.dataOK = True
-        self.start_update_thread()
+        #self.start_update_thread()
         self.lcd.clear()
     except requests.exceptions.HTTPError:
       self.lcd.clear()
@@ -182,9 +194,12 @@ class Targetometer:
       self.lcd.clear()
       self.lcd.message("connection error")
       sleep(3)
+      self.lcd.clear()
       print str(e)
       self.dataOK = False
-    
+    finally:
+      self.start_update_thread()
+
   def evaluate_yeah(self):
     if self.data['yeah'] != None:
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
