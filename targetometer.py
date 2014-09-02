@@ -12,7 +12,6 @@ import os
 import time
 import datetime
 import subprocess
-import thread
 import hashlib
 import re
 
@@ -38,12 +37,10 @@ class Targetometer:
   lcd = Adafruit_CharLCDPlate()
   version = None
   device_id = None
-  connectionOK = False
   dataOK = False
   firstUpdate = True
   yeah_led = False
   last_button_press = None
-  
   heartbeat_thread = None
   heartbeat_stop_event = None
   idle_thread = None
@@ -69,12 +66,9 @@ class Targetometer:
     print "version : " + self.version
     self.gpio_setup()
     self.initialize_targetometer()
-    if self.connectionOK == True:
-      self.query_customer_kpis()
-      if self.dataOK == True:
-        self.register_button()
-        self.start_working()
-    
+    while True:
+      pass
+   
   def initialize_targetometer(self):
     self.lcd.clear()
     self.lcd.createChar(1, self.logo_1_1)
@@ -90,38 +84,39 @@ class Targetometer:
     self.lcd.message("  " + chr(5)+chr(6)+chr(7)+chr(8) + "nugg.ad")
     sleep(3)
     self.lcd.clear()
-    thread.start_new_thread(self.blink_all_leds_like_kitt, (1,))
+    Thread(target=self.blink_all_leds_like_kitt, args=(1,)).start()
     self.lcd.message("Targetometer\ninitializing...")
     sleep(2)
-    self.lcd.clear()
     import socket
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
       s.connect(('google.com', 0))
+      self.lcd.clear()
       self.lcd.message('IP address: \n' + s.getsockname()[0])
       sleep(2)
       self.lcd.clear()
-      self.connectionOK = True
+      self.query_customer_kpis()
+      if self.dataOK == True:
+        self.register_button()
+        self.start_working()
     except socket.error as e:
+      self.lcd.clear()
       self.lcd.message('no connection \n to internet')  
       sleep(3)
       self.lcd.clear()
       self.lcd.message('error no.' + str(e.errno))        
       sleep(3)
+      retry_interval = 60
+      timer = 0
+      while timer < retry_interval:
+        sleep(1)
+        timer += 1
+	remaining = retry_interval - timer
+        self.lcd.clear()
+        self.lcd.message('retrying in ' + str(remaining) + 's')
       self.lcd.clear()
-      self.lcd.message('automatic  retry\n in 60s')
-      t = Thread(target=self.init_timer, args=(),)
-      t.start()
-      self.connectionOK = False
+      self.initialize_targetometer()
 
-  def init_timer(self):
-    retry_interval = 60
-    timer = 0
-    while timer < retry_interval:
-      sleep(1)
-      timer += 1
-    self.__init__()
- 
   def update_timer(self, stop_event):
     update_interval = 3600
     timer = 0
@@ -141,15 +136,14 @@ class Targetometer:
     self.start_working() 
 
   def query_customer_kpis(self):
-    thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
+    Thread(target=self.blink_active_led, args=(10,)).start() if self.firstUpdate == True else 1
     self.lcd.clear()
     self.lcd.message("updating data...")
     self.perform_request()
     
   def start_update_thread(self):
     if self.update_thread != None:
-      if self.update_thread.is_alive() == True:
-        self.update_stop_event.set()
+      self.update_stop_event.set()
     self.update_stop_event = Event()
     self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
     self.update_thread.daemon = False
@@ -165,15 +159,15 @@ class Targetometer:
       self.data = r.json()
       if 'error' in self.data:
         self.lcd.clear()
-        self.lcd.message("unkown device\ncontact nugg.ad")
+        self.lcd.message("unknown device\ncontact nugg.ad")
         self.dataOK = False
-        #self.start_update_thread()
+        self.start_update_thread()
       else: 	
         self.data_time = datetime.datetime.now()
         self.lcd.message("updating data... \nsuccess")
         sleep(1)
         self.dataOK = True
-        #self.start_update_thread()
+        self.start_update_thread()
         self.lcd.clear()
     except requests.exceptions.HTTPError:
       self.lcd.clear()
@@ -194,11 +188,8 @@ class Targetometer:
       self.lcd.clear()
       self.lcd.message("connection error")
       sleep(3)
-      self.lcd.clear()
-      print str(e)
-      self.dataOK = False
-    finally:
       self.start_update_thread()
+      self.dataOK = False
 
   def evaluate_yeah(self):
     if self.data['yeah'] != None:
@@ -244,9 +235,7 @@ class Targetometer:
           self.heartbeat_stop_event = Event()
           self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
           self.heartbeat_thread.start()
-    else:
-      self.lcd.message('please check \nthe connection')
-      
+          
   def stop_all_threads(self):
     if self.idle_stop_event != None:
       self.idle_stop_event.set()
@@ -443,7 +432,7 @@ class Targetometer:
     self.lcd.clear()
     try:
       headers = {'targetometer_version' : self.version}
-      thread.start_new_thread(self.blink_yeah_led, (20,))
+      Thread(target=self.blink_yeah_led, args=(20,)).start()
       r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
         self.lcd.message("Yeah!!!!") 
