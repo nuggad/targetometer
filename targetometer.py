@@ -158,7 +158,6 @@ class Targetometer:
         self.update_thread.daemon = False
         self.update_thread.start()
         self.firstUpdate = False
-        self.evaluate_yeah()
     except requests.exceptions.HTTPError:
       self.lcd.clear()
       self.lcd.message("invalid HTTP\nresponse "  + str(r.status_code))
@@ -187,9 +186,9 @@ class Targetometer:
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
       yeah_diff = datetime.datetime.utcnow() - last_yeah
       if yeah_diff.seconds < 86400:
-        yeah_led = True
+        self.yeah_led = True
       else:
-        yeah_led = False
+        self.yeah_led = False
     
   def update_request_leds(self):
     GPIO.output(self.LED_ACTIVE, True)
@@ -218,6 +217,7 @@ class Targetometer:
         self.lcd.message("no data yet...\nbutton for retry")
         sleep(3)
       else:
+        self.evaluate_yeah()
         self.display_stop_event = Event()
         self.display_thread = Thread(target=self.show_customer_kpis, args=(self.display_stop_event,))
         self.display_thread.start()
