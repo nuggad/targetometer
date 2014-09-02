@@ -131,9 +131,19 @@ class Targetometer:
   def query_customer_kpis(self):
     thread.start_new_thread(self.blink_active_led, (10,)) if self.firstUpdate == True else 1
     self.lcd.clear()
-    self.lcd.message("Updating Data...")
+    self.lcd.message("updating data...")
     self.perform_request()
     
+  def start_update_thread(self):
+    if self.update_thread != None:
+      if self.update_thread.is_alive() == True:
+        self.update_stop_event.set()
+    self.update_stop_event = Event()
+    self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
+    self.update_thread.daemon = False
+    self.update_thread.start()
+    self.firstUpdate = False
+
   def perform_request(self):
     try:
       headers = {'targetometer_version' : self.version}
@@ -144,20 +154,15 @@ class Targetometer:
       if 'error' in self.data:
         self.lcd.clear()
         self.lcd.message("unkown device\ncontact nugg.ad")
-        sleep(604800)
+        self.dataOK = False
+        self.start_update_thread()
       else: 	
         self.data_time = datetime.datetime.now()
-        self.lcd.message("Updating Data... \nSuccess")
+        self.lcd.message("updating data... \nsuccess")
         sleep(1)
         self.dataOK = True
-        if self.update_thread != None:
-          if self.update_thread.is_alive() == True:
-	    self.update_stop_event.set()
-        self.update_stop_event = Event()
-        self.update_thread = Thread(target=self.update_timer, args=(self.update_stop_event,))
-        self.update_thread.daemon = False
-        self.update_thread.start()
-        self.firstUpdate = False
+        self.start_update_thread()
+        self.lcd.clear()
     except requests.exceptions.HTTPError:
       self.lcd.clear()
       self.lcd.message("invalid HTTP\nresponse "  + str(r.status_code))
@@ -179,7 +184,6 @@ class Targetometer:
       sleep(3)
       print str(e)
       self.dataOK = False
-    self.lcd.clear()
     
   def evaluate_yeah(self):
     if self.data['yeah'] != None:
@@ -214,8 +218,8 @@ class Targetometer:
       if self.idle_stop_event != None:
         self.idle_stop_event.set()
       if self.data['timestamps']['last_record'] == None:
-        self.lcd.message("no data yet...\nbutton for retry")
-        sleep(3)
+        self.lcd.message("no data yet...")
+        self.start_update_thread()
       else:
         self.evaluate_yeah()
         self.display_stop_event = Event()
