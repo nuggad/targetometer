@@ -32,7 +32,7 @@ class Targetometer:
   logo_2_2 = [0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000]
   logo_2_3 = [0b01111,0b01111,0b00111,0b00000,0b00000,0b00000,0b00000,0b00000]
   logo_2_4 = [0b11000,0b10000,0b00000,0b00000,0b00000,0b00000,0b00000,0b00000]
-  
+
   #hardware and status
   lcd = Adafruit_CharLCDPlate()
   version = None
@@ -41,6 +41,7 @@ class Targetometer:
   firstUpdate = True
   yeah_led = False
   last_button_press = None
+
   heartbeat_thread = None
   heartbeat_stop_event = None
   idle_thread = None
@@ -48,12 +49,12 @@ class Targetometer:
   display_thread = None
   display_stop_event = None
   update_thread = None
-  update_stop_event = None  
+  update_stop_event = None
 
   #data
   data = None
   data_time = None
-  
+
   def __init__(self):
     os.chdir(os.path.dirname(__file__))
     print subprocess.check_output(["pwd"])
@@ -68,7 +69,7 @@ class Targetometer:
     self.initialize_targetometer()
     while True:
       pass
-   
+
   def initialize_targetometer(self):
     self.lcd.clear()
     self.lcd.createChar(1, self.logo_1_1)
@@ -104,7 +105,7 @@ class Targetometer:
       self.lcd.message('no connection \n to internet')  
       sleep(3)
       self.lcd.clear()
-      self.lcd.message('error no.' + str(e.errno))        
+      self.lcd.message('error no.' + str(e.errno))
       sleep(3)
       retry_interval = 60
       timer = 0
@@ -121,7 +122,7 @@ class Targetometer:
     update_interval = 3600
     timer = 0
     while (timer < update_interval and not stop_event.is_set()):
-      stop_event.wait(1)  
+      stop_event.wait(1)
       timer += 1
       if (timer == update_interval-10):
         self.unregister_button()
@@ -133,14 +134,14 @@ class Targetometer:
     sleep(1)
     self.query_customer_kpis()
     self.register_button()
-    self.start_working() 
+    self.start_working()
 
   def query_customer_kpis(self):
     Thread(target=self.blink_active_led, args=(10,)).start() if self.firstUpdate == True else 1
     self.lcd.clear()
     self.lcd.message("updating data...")
     self.perform_request()
-    
+
   def start_update_thread(self):
     if self.update_thread != None:
       self.update_stop_event.set()
@@ -153,7 +154,7 @@ class Targetometer:
   def perform_request(self):
     try:
       headers = {'targetometer_version' : self.version}
-      r = requests.get('https://apistage.nugg.ad/info?device=' + self.device_id, headers= headers, verify=False)
+      r = requests.get('https://apistage.nuggad.net/info?device=' + self.device_id, headers= headers, verify=False)
       if r.status_code != requests.codes.ok:
         r.raise_for_status()
       self.data = r.json()
@@ -199,7 +200,7 @@ class Targetometer:
         self.yeah_led = True
       else:
         self.yeah_led = False
-    
+
   def update_request_leds(self):
     GPIO.output(self.LED_ACTIVE, True)
     GPIO.output(self.LED_MOBILE, self.data['mobile_requests_ok'])
@@ -235,7 +236,7 @@ class Targetometer:
           self.heartbeat_stop_event = Event()
           self.heartbeat_thread = Thread(target=self.heartbeat, args=(self.heartbeat_stop_event,))
           self.heartbeat_thread.start()
-          
+
   def stop_all_threads(self):
     if self.idle_stop_event != None:
       self.idle_stop_event.set()
@@ -243,7 +244,7 @@ class Targetometer:
       self.heartbeat_stop_event.set()
     if self.display_stop_event != None:
       self.display_stop_event.set()
-      
+
   def show_customer_kpis(self, stop_event):
     duration = 3
     #update leds
@@ -252,14 +253,14 @@ class Targetometer:
     if stop_event.is_set():
       self.lcd.clear()
       return
-    
+
     #hi user
     user = self.data['user']
-    user_string = (user[:14] + "..") if len(user) > 16 else user 
+    user_string = (user[:14] + "..") if len(user) > 16 else user
     self.lcd.message("Hi \n" + user_string)
     stop_event.wait(duration)
     self.lcd.clear()
-    
+
     if stop_event.is_set():
       self.lcd.clear()
       return
@@ -271,7 +272,7 @@ class Targetometer:
       self.lcd.clear()
       message = self.data['message']
       #message = 'das ist eine sehr lange nachricht'
-      message_string = (message[:30] + "..") if len(message) > 32 else message 
+      message_string = (message[:30] + "..") if len(message) > 32 else message
       self.lcd.message(re.sub("(.{16})", "\\1\n", message_string, 0, re.DOTALL))
       stop_event.wait(duration)
       self.lcd.clear()
@@ -279,7 +280,7 @@ class Targetometer:
     if stop_event.is_set():
       self.lcd.clear()
       return
-    
+
     #data mined xx min ago
     live = datetime.datetime.strptime(self.data['timestamps']['live'], '%Y-%m-%d %H:%M:%S')
     last = datetime.datetime.strptime(self.data['timestamps']['last_record'], '%Y-%m-%d %H:%M:%S')
@@ -293,7 +294,7 @@ class Targetometer:
     if stop_event.is_set():
       self.lcd.clear()
       return
-    
+
     #updates (hour)
     self.lcd.message("updates (hour): \n" + str(int(self.data['trending']['updates_per_hour'])))
     stop_event.wait(duration)
@@ -315,17 +316,17 @@ class Targetometer:
     #trending topics
     if self.data['trending']['now'] != []:
       for topic in self.data['trending']['now']:
-        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic 
+        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic
         self.lcd.message("trending (now):\n" + topic_string)
         stop_event.wait(duration)
         self.lcd.clear();
         if stop_event.is_set():
           self.lcd.clear()
           return
-      
+
     if self.data['trending']['today'] != []:
       for topic in self.data['trending']['today']:
-        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic 
+        topic_string = (topic[:14] + "..") if len(topic) > 16 else topic
         self.lcd.message("trending (today):\n" + topic_string)
         stop_event.wait(duration)
         self.lcd.clear();
@@ -341,7 +342,7 @@ class Targetometer:
     if stop_event.is_set():
       self.lcd.clear()
       return
-        
+
     #active flights
     self.lcd.message("active brand\nflights: " + str(self.data['flights']['active']))
     stop_event.wait(duration)
@@ -350,7 +351,7 @@ class Targetometer:
     if stop_event.is_set():
       self.lcd.clear()
       return
-    
+
     #top uplift
     if self.data['best_uplift']['branding'] != None:
       self.lcd.message("top brand uplift\n(month): " + str(int(self.data['best_uplift']['branding']*100)) +"%")
@@ -363,7 +364,7 @@ class Targetometer:
 
     if self.data['top_vars'] != []:
       for top_var in self.data['top_vars']:
-        top_var_string = (top_var[:14] + "..") if len(top_var) > 16 else top_var 
+        top_var_string = (top_var[:14] + "..") if len(top_var) > 16 else top_var
         self.lcd.message("top variables:\n" + top_var_string)
         stop_event.wait(duration)
         self.lcd.clear();
@@ -389,7 +390,7 @@ class Targetometer:
     self.lcd.clear()
     if not stop_event.is_set():
       self.start_working()
-    
+
   def register_button(self):
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
@@ -405,10 +406,10 @@ class Targetometer:
     else:
       if (time.time() - self.last_button_press) > 3:
         self.evaluate_button_press(channel)
-	        
+
   def evaluate_button_press(self, channel):
     self.last_button_press = time.time()
-    self.stop_all_threads()   
+    self.stop_all_threads()
     timer = 0
     text = "Long for Yeah!\n"
     while True:
@@ -426,8 +427,8 @@ class Targetometer:
           self.query_customer_kpis()
           self.start_working()
           break
-      sleep(0.1)      
-  
+      sleep(0.1)
+
   def send_yeah(self):
     self.lcd.clear()
     try:
@@ -435,7 +436,7 @@ class Targetometer:
       Thread(target=self.blink_yeah_led, args=(20,)).start()
       r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
-        self.lcd.message("Yeah!!!!") 
+        self.lcd.message("Yeah!!!!")
       else:
         r.raise_for_status()
       sleep(3)
@@ -489,7 +490,7 @@ class Targetometer:
       GPIO.output(self.LED_YEAH, False)
       sleep(0.05)
       count = count + 1
-      
+
   def heartbeat(self, stop_event):
     while (not stop_event.is_set()):
       if self.data['heartbeat'] > 0:
@@ -499,7 +500,7 @@ class Targetometer:
 	GPIO.output(self.LED_MOOD, False)
         stop_event.wait(interval*0.3)
     self.heartbeat_thread = None
-  
+
   def blink_all_leds_like_kitt(self, repetitions):
     count = 1
     while count <= repetitions:
@@ -534,7 +535,7 @@ class Targetometer:
       GPIO.output(self.LED_MOBILE, True)
       sleep(0.05)
       GPIO.output(self.LED_MOBILE, False)
-      sleep(0.05)    
+      sleep(0.05)
       if count == repetitions:
         GPIO.output(self.LED_YEAH, True)
         sleep(0.05)
