@@ -418,12 +418,11 @@ class Targetometer:
       if GPIO.input(channel) == True:
         timer += 1
         text += chr(219)
-      else:
-        if timer > 15:
+        if timer > 18:
           self.send_yeah()
           self.start_working()
           break
-        else:
+      else:
           self.query_customer_kpis()
           self.start_working()
           break
@@ -434,7 +433,7 @@ class Targetometer:
     try:
       headers = {'targetometer_version' : self.version}
       Thread(target=self.blink_yeah_led, args=(20,)).start()
-      r = requests.post("https://apistage.nugg.ad/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
+      r = requests.post("https://apistage.nuggad.net/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
         self.lcd.message("Yeah!!!!")
       else:
