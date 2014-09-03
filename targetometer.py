@@ -196,7 +196,7 @@ class Targetometer:
     if self.data['yeah'] != None:
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
       yeah_diff = datetime.datetime.utcnow() - last_yeah
-      if yeah_diff.seconds < 86400:
+      if yeah_diff.total_seconds() < 86400:
         self.yeah_led = True
       else:
         self.yeah_led = False
