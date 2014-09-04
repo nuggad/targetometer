@@ -14,6 +14,8 @@ import datetime
 import subprocess
 import hashlib
 import re
+import signal
+import sys
 
 class Targetometer:
 
@@ -39,6 +41,7 @@ class Targetometer:
   device_id = None
   dataOK = False
   firstUpdate = True
+  kill = False
   yeah_led = False
   last_button_press = None
 
@@ -57,6 +60,8 @@ class Targetometer:
 
   def __init__(self):
     try:
+      signal.signal(signal.SIGTERM, self.signal_handler)
+      signal.signal(signal.SIGINT, self.signal_handler)
       os.chdir(os.path.dirname(__file__))
       print subprocess.check_output(["pwd"])
       self.version = subprocess.check_output(["git" , "rev-parse", "HEAD"]).strip()
@@ -69,12 +74,16 @@ class Targetometer:
       self.gpio_setup()
       self.initialize_targetometer()
      
-      while True:
+      while self.kill == False:
         pass
     
     except KeyboardInterrupt:  
       self.shutdown()
 
+  def signal_handler(self, signal, frame):
+    print signal
+    self.shutdown()
+  
   def initialize_targetometer(self):
     self.lcd.clear()
     self.lcd.createChar(1, self.logo_1_1)
@@ -266,6 +275,7 @@ class Targetometer:
     sleep(3)
     self.lcd.clear()
     GPIO.cleanup()
+    self.kill = True
 
   def show_customer_kpis(self, stop_event):
     duration = 3
