@@ -56,19 +56,24 @@ class Targetometer:
   data_time = None
 
   def __init__(self):
-    os.chdir(os.path.dirname(__file__))
-    print subprocess.check_output(["pwd"])
-    self.version = subprocess.check_output(["git" , "rev-parse", "HEAD"]).strip()
-    t = self
-    m = hashlib.md5()
-    m.update(self.get_hw_addr('eth0'))
-    self.device_id = m.hexdigest()
-    print "deviceid: " + self.device_id
-    print "version : " + self.version
-    self.gpio_setup()
-    self.initialize_targetometer()
-    while True:
-      pass
+    try:
+      os.chdir(os.path.dirname(__file__))
+      print subprocess.check_output(["pwd"])
+      self.version = subprocess.check_output(["git" , "rev-parse", "HEAD"]).strip()
+      t = self
+      m = hashlib.md5()
+      m.update(self.get_hw_addr('eth0'))
+      self.device_id = m.hexdigest()
+      print "deviceid: " + self.device_id
+      print "version : " + self.version
+      self.gpio_setup()
+      self.initialize_targetometer()
+     
+      while True:
+        pass
+    
+    except KeyboardInterrupt:  
+      self.shutdown()
 
   def initialize_targetometer(self):
     self.lcd.clear()
@@ -194,12 +199,18 @@ class Targetometer:
 
   def evaluate_yeah(self):
     if self.data['yeah'] != None:
+      utcnow = datetime.datetime.utcnow()
       last_yeah = datetime.datetime.strptime(self.data['yeah'], '%Y-%m-%d %H:%M:%S')
-      yeah_diff = datetime.datetime.utcnow() - last_yeah
-      if yeah_diff.total_seconds() < 86400:
-        self.yeah_led = True
+      if last_yeah <= utcnow:
+        yeah_diff = utcnow - last_yeah
+        if yeah_diff.total_seconds() < 86400:
+          self.yeah_led = True
+        else:
+          self.yeah_led = False
       else:
         self.yeah_led = False
+    else:
+      self.yeah_led = False
 
   def update_request_leds(self):
     GPIO.output(self.LED_ACTIVE, True)
@@ -244,6 +255,17 @@ class Targetometer:
       self.heartbeat_stop_event.set()
     if self.display_stop_event != None:
       self.display_stop_event.set()
+
+  def shutdown(self):
+    self.stop_all_threads()
+    sleep(2)
+    if self.update_stop_event != None:
+      self.update_stop_event.set()
+    self.lcd.clear()
+    self.lcd.message('shutting down\n good bye')
+    sleep(3)
+    self.lcd.clear()
+    GPIO.cleanup()
 
   def show_customer_kpis(self, stop_event):
     duration = 3
