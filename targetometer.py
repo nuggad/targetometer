@@ -1,5 +1,5 @@
 #!/usr/bin/python
-
+# coding:utf-8
 from time import sleep, strftime, localtime
 from threading import Timer
 from threading import Thread
@@ -289,7 +289,7 @@ class Targetometer:
     #hi user
     user = self.data['user']
     user_string = (user[:14] + "..") if len(user) > 16 else user
-    self.lcd.message("Hi \n" + user_string)
+    self.lcd.message("Hi \n" + self.fix_special_chars(user_string.encode('utf-8')))
     stop_event.wait(duration)
     self.lcd.clear()
 
@@ -302,10 +302,9 @@ class Targetometer:
       self.lcd.message('nugg.ad says:')
       stop_event.wait(duration)
       self.lcd.clear()
-      message = self.data['message']
-      #message = 'das ist eine sehr lange nachricht'
+      message = self.data['message'].encode('utf-8')
       message_string = (message[:30] + "..") if len(message) > 32 else message
-      self.lcd.message(re.sub("(.{16})", "\\1\n", message_string, 0, re.DOTALL))
+      self.lcd.message(self.fix_special_chars(re.sub("(.{16})", "\\1\n", message_string, 0, re.DOTALL)))
       stop_event.wait(duration)
       self.lcd.clear()
 
@@ -313,22 +312,8 @@ class Targetometer:
       self.lcd.clear()
       return
 
-    #data mined xx min ago
-    live = datetime.datetime.strptime(self.data['timestamps']['live'], '%Y-%m-%d %H:%M:%S')
-    last = datetime.datetime.strptime(self.data['timestamps']['last_record'], '%Y-%m-%d %H:%M:%S')
-    server_diff = live-last
-    local_diff = datetime.datetime.now() - self.data_time
-    diff = server_diff + local_diff
-    self.lcd.message("data mined: \n" + str(diff.seconds/60) + "min ago")
-    stop_event.wait(duration)
-    self.lcd.clear()
-
-    if stop_event.is_set():
-      self.lcd.clear()
-      return
-
     #updates (hour)
-    self.lcd.message("updates (hour): \n" + str(int(self.data['trending']['updates_per_hour'])))
+    self.lcd.message("page impressions\n(hour):" + str(int(self.data['trending']['updates_per_hour'])))
     stop_event.wait(duration)
     self.lcd.clear()
 
@@ -349,7 +334,7 @@ class Targetometer:
     if self.data['trending']['now'] != []:
       for topic in self.data['trending']['now']:
         topic_string = (topic[:14] + "..") if len(topic) > 16 else topic
-        self.lcd.message("trending (now):\n" + topic_string)
+        self.lcd.message("trending (now):\n" + self.fix_special_chars(topic_string.encode('urf-8')))
         stop_event.wait(duration)
         self.lcd.clear();
         if stop_event.is_set():
@@ -359,7 +344,7 @@ class Targetometer:
     if self.data['trending']['today'] != []:
       for topic in self.data['trending']['today']:
         topic_string = (topic[:14] + "..") if len(topic) > 16 else topic
-        self.lcd.message("trending (today):\n" + topic_string)
+        self.lcd.message("trending (today):\n" + self.fix_special_chars(topic_string.encode('utf-8')))
         stop_event.wait(duration)
         self.lcd.clear();
         if stop_event.is_set():
@@ -397,7 +382,7 @@ class Targetometer:
     if self.data['top_vars'] != []:
       for top_var in self.data['top_vars']:
         top_var_string = (top_var[:14] + "..") if len(top_var) > 16 else top_var
-        self.lcd.message("top variables:\n" + top_var_string)
+        self.lcd.message("top variables:\n" + self.fix_special_chars(top_var_string.encode('utf-8')))
         stop_event.wait(duration)
         self.lcd.clear();
         if stop_event.is_set():
@@ -484,6 +469,9 @@ class Targetometer:
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     info = fcntl.ioctl(s.fileno(), 0x8927,  struct.pack('256s', ifname[:15]))
     return ''.join(['%02x:' % ord(char) for char in info[18:24]])[:-1]
+
+  def fix_special_chars(self, string):
+    return string.replace('ä', '\xE1').replace('ö', '\xEF').replace('ü','\xF5').replace('ß', '\xE2')
 
   def gpio_setup(self):
     GPIO.setmode(GPIO.BOARD)
