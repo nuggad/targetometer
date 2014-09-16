@@ -334,7 +334,7 @@ class Targetometer:
     if self.data['trending']['now'] != []:
       for topic in self.data['trending']['now']:
         topic_string = (topic[:14] + "..") if len(topic) > 16 else topic
-        self.lcd.message("trending (now):\n" + self.fix_special_chars(topic_string.encode('urf-8')))
+        self.lcd.message("trending (now):\n" + self.fix_special_chars(topic_string.encode('utf-8')))
         stop_event.wait(duration)
         self.lcd.clear();
         if stop_event.is_set():
