@@ -20,8 +20,9 @@ import sys
 class Targetometer:
 
   #constants
-  LED_MOOD = 11
-  LED_YEAH = 16
+  LED_MOOD  = 11
+  LED_MOOD2 = 13
+  LED_YEAH  = 16
   LED_MOBILE = 22
   LED_PROGRAMMATIC = 24
   LED_DATA = 26
@@ -477,6 +478,7 @@ class Targetometer:
     GPIO.setmode(GPIO.BOARD)
     GPIO.setwarnings(False)
     GPIO.setup(self.LED_MOOD, GPIO.OUT)
+    GPIO.setup(self.LED_MOOD2, GPIO.OUT)
     GPIO.setup(self.LED_YEAH, GPIO.OUT)
     GPIO.setup(self.LED_ACTIVE, GPIO.OUT)
     GPIO.setup(self.LED_MOBILE, GPIO.OUT)
@@ -484,6 +486,7 @@ class Targetometer:
     GPIO.setup(self.LED_DATA, GPIO.OUT)
 
     GPIO.output(self.LED_MOOD, False)
+    GPIO.output(self.LED_MOOD2, False)
     GPIO.output(self.LED_YEAH, False)
     GPIO.output(self.LED_ACTIVE, False)
     GPIO.output(self.LED_MOBILE, False)
@@ -515,8 +518,10 @@ class Targetometer:
       if self.data['heartbeat'] > 0:
         interval = (1/(self.data['heartbeat']*140))*60
         GPIO.output(self.LED_MOOD, True)
+        GPIO.output(self.LED_MOOD2, True)
         stop_event.wait(interval*0.7)
 	GPIO.output(self.LED_MOOD, False)
+	GPIO.output(self.LED_MOOD2, False)
         stop_event.wait(interval*0.3)
     self.heartbeat_thread = None
 

@@ -12,6 +12,7 @@ LED_PROGRAMMATIC=24
 LED_DATA=26
 LED_ACTIVE=18
 LED_MOOD=11
+LED_MOOD2=13
 
 
 # set pw for user pi
@@ -28,6 +29,7 @@ git clone https://github.com/nuggad/targetometer.git  --branch production --sing
 
 #up and running: 1.MOOD-LED an
 python /opt/targetometer/led.py ${LED_MOOD}
+python /opt/targetometer/led.py ${LED_MOOD2}
 
 # patch targetometer
 #sed -i 's/\(os.chdir.*\)/#\1/' /opt/targetometer/targetometer.py
