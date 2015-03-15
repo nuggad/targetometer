@@ -7,7 +7,7 @@ if ! [ -f raspbian.img ] ; then
 	fi
 	echo "### unpack raspbian archive"
 	unzip -x raspbian.img.zip
-	mv $(ls -1 *raspbian.img) raspbian.img
+	mv $(ls -1 *raspbian*.img) raspbian.img
 fi
 sudo which kpartx > /dev/null || { 
 	echo "### install kpartx"
