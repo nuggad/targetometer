@@ -109,8 +109,9 @@ local
 EOF
 
 cat <<\EOF >> /etc/network/interfaces
-auto eseye
-iface fona inet pppp
+
+auto fona
+iface fona inet ppp
 	provider eseye
 EOF
 
