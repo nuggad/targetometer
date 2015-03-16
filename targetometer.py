@@ -169,7 +169,7 @@ class Targetometer:
   def perform_request(self):
     try:
       headers = {'targetometer_version' : self.version}
-      r = requests.get('https://apistage.nuggad.net/info?device=' + self.device_id, headers= headers, verify=False)
+      r = requests.get('https://api.nuggad.net/info?device=' + self.device_id, headers= headers, verify=False)
       if r.status_code != requests.codes.ok:
         r.raise_for_status()
       self.data = r.json()
@@ -451,7 +451,7 @@ class Targetometer:
     try:
       headers = {'targetometer_version' : self.version}
       Thread(target=self.blink_yeah_led, args=(20,)).start()
-      r = requests.post("https://apistage.nuggad.net/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
+      r = requests.post("https://api.nuggad.net/targetometer/yeah/?device=" + self.device_id, headers = headers, verify=False)
       if r.status_code == requests.codes.ok or r.status_code == requests.codes.no_content:
         self.lcd.message("Yeah!!!!")
       else:
