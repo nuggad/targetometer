@@ -21,6 +21,14 @@ sed -i 's#^pi:\([0-9a-zA-Z./$]*\)\(:.*\)#pi:$6$8l0VB7JV$azD9me.8vuK9xi7qxOPBtBM2
 # no root shell at tty1
 sed -i  -e 's/#\(.*RPICFG_TO_ENABLE$\)/\1/g' -e 's/\(.*RPICFG_TO_DISABLE$\)/#\1/g' /etc/inittab
 
+# disable serial console
+echo $(for i in $(cat /boot/cmdline.txt) ; do if ! echo "${i}" | grep -q console=ttyAMA  ; then echo -n "${i} " ; fi  ; done) > /boot/cmdline.txt.new
+mv /boot/cmdline.txt     /boot/cmdline.txt.orig 
+mv /boot/cmdline.txt.new /boot/cmdline.txt
+sed 's#\(^T.*getty.*ttyAMA.*\)#\#\1#g' /etc/inittab > /etc/inittab.new
+mv /etc/inittab     /etc/inittab.orig
+mv /etc/inittab.new /etc/inittab
+
 cd /opt
 #git clone https://github.com/akm2b/targetometer.git
 #git clone https://github.com/binlan/targetometer.git
@@ -44,8 +52,12 @@ aptitude -y install python-smbus python-dev
 python /opt/targetometer/led.py ${LED_MOBILE}
 
 echo '############ distribute_setup.py #############'
-curl -q -L -O http://python-distribute.org/distribute_setup.py
-python distribute_setup.py
+# python-distribute is dead
+#curl -q -L -O http://python-distribute.org/distribute_setup.py
+#curl -q -L -O https://gist.githubusercontent.com/anonymous/947191a4635cd7b7f79a/raw/36054b7f8d7b0c4c172628fd9bd16f46e53bb34b/distribute_setup.py
+#python distribute_setup.py
+# sowas soll man jetzt machen
+#curl https://bootstrap.pypa.io/ez_setup.py -o - | python
 echo '############ get-pip.py #############'
 curl -q -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
 python get-pip.py
@@ -54,8 +66,9 @@ echo '############ pip virtualenv, requests ####################'
 /usr/local/bin/pip install requests
 rm distribute_setup.py get-pip.py
 
-echo 'i2c-bcm2708' >> /etc/modules
-echo 'i2c-dev' >> /etc/modules
+echo 'i2c-bcm2708'  >> /etc/modules
+echo 'i2c-dev'      >> /etc/modules
+echo 'device_tree=' >> /boot/config.txt
 
 modprobe i2c-bcm2708
 modprobe i2c-dev
@@ -74,12 +87,33 @@ aptitude -y safe-upgrade
 # ok, 4.LED an
 python /opt/targetometer/led.py ${LED_DATA}
 
-echo '##############cront-apt################'
-aptitude -y install cron-apt 
+echo '############## ppp cront-apt + tools  ################'
+aptitude -y install ppp cron-apt vim screen lsof dnsutils tcpdump ngrep
 aptitude -y clean
 
 cp -v /usr/share/zoneinfo/Europe/Berlin /etc/localtime
 rm -vf /etc/profile.d/raspi-config.sh
+
+cat <<\EOF > /etc/ppp/peers/eseye
+connect "/usr/sbin/chat -V -e -v -f /etc/chatscripts/gprs -T eseye.com"
+/dev/ttyAMA0
+115200
+noipdefault
+usepeerdns
+defaultroute
+#replacedefaultroute
+persist
+noauth
+nocrtscts
+local
+EOF
+
+cat <<\EOF >> /etc/network/interfaces
+
+auto fona
+iface fona inet ppp
+	provider eseye
+EOF
 
 echo '############## config autorun ###########'
 cat <<\EOF > /opt/targetometer/runme.sh
