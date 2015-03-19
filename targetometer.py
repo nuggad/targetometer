@@ -372,9 +372,11 @@ class Targetometer:
 
     #top uplift
     if self.data['best_uplift']['branding'] != None:
-      self.lcd.message("top brand uplift\n(month): " + str(int(self.data['best_uplift']['branding']*100)) +"%")
-      stop_event.wait(duration)
-      self.lcd.clear()
+      tbul = int(self.data['best_uplift']['branding']) * 100
+      if tbul > 0:
+        self.lcd.message("top brand uplift\n(month): " + str(tbul) +"%")
+        stop_event.wait(duration)
+        self.lcd.clear()
 
     if stop_event.is_set():
       self.lcd.clear()
