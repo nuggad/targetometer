@@ -110,12 +110,60 @@ EOF
 
 cat <<\EOF >> /etc/network/interfaces
 
-auto fona
+#auto fona
 iface fona inet ppp
 	provider eseye
 EOF
 
 echo '############## config autorun ###########'
+
+cat <<\EOF > /opt/targetometer/runfona.sh
+#!/bin/bash
+
+# 18 = Key
+# 21 = PS
+
+# init
+echo "18" > /sys/class/gpio/export
+echo "21" > /sys/class/gpio/export
+echo "out" > /sys/class/gpio/gpio18/direction
+echo "in" > /sys/class/gpio/gpio21/direction
+
+
+pushKeyButton () {
+        echo "1" > /sys/class/gpio/gpio18/value
+        sleep 2
+        echo "0" > /sys/class/gpio/gpio18/value
+}
+
+status () {
+        cat /sys/class/gpio/gpio21/value
+}
+
+# check if fona is on or off 1=on 0=off
+if [ $(status) -eq 1 ] ; then
+        # turn it off and on again
+        pushKeyButton
+        sleep 3
+        pushKeyButton
+else
+        pushKeyButton
+fi
+
+sleep 3
+if [ $(status) -eq 1 ] ; then
+        ifup fona
+else
+        # maybe no fona there?
+        echo "no fona, do nothing"
+fi
+
+# cleanup
+echo "18" > /sys/class/gpio/unexport
+echo "21" > /sys/class/gpio/unexport
+EOF
+chmod 755 /opt/targetometer/runfona.sh
+
 cat <<\EOF > /opt/targetometer/runme.sh
 #!/bin/bash
 cd /opt/targetometer/
@@ -139,6 +187,7 @@ cat <<\EOF > /etc/rc.local
 #
 # By default this script does nothing.
 
+/opt/targetometer/runfona.sh
 /opt/targetometer/runme.sh
 # write device id to login msg
 echo "Device ID:" $(echo -n $(ip a l eth0|grep ether|sed 's/^\s*//'|cut -d ' ' -f2)|md5sum|cut -d ' ' -f1) > /etc/motd
