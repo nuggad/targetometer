@@ -120,25 +120,47 @@ echo '############## config autorun ###########'
 cat <<\EOF > /opt/targetometer/runfona.sh
 #!/bin/bash
 
-# 18 = Key
-# 21 = PS
+PS=11
+KEY=9
 
-# init
-echo "18" > /sys/class/gpio/export
-echo "21" > /sys/class/gpio/export
-echo "out" > /sys/class/gpio/gpio18/direction
-echo "in" > /sys/class/gpio/gpio21/direction
+initme() {
+	echo ${KEY} > /sys/class/gpio/export
+	echo ${PS}  > /sys/class/gpio/export
+	echo "out"  > /sys/class/gpio/gpio${KEY}/direction
+	echo "in"   > /sys/class/gpio/gpio${PS}/direction
+}
 
+cleanme() {
+	echo ${KEY} > /sys/class/gpio/unexport
+	echo ${PS}  > /sys/class/gpio/unexport
+}
 
-pushKeyButton () {
-        echo "1" > /sys/class/gpio/gpio18/value
+pushKeyButton() {
+        echo "1" > /sys/class/gpio/gpio${KEY}/value
         sleep 2
-        echo "0" > /sys/class/gpio/gpio18/value
+        echo "0" > /sys/class/gpio/gpio${KEY}/value
 }
 
-status () {
-        cat /sys/class/gpio/gpio21/value
+status() {
+        cat /sys/class/gpio/gpio${PS}/value
 }
+
+fona_there() {
+        echo AT+CGMM|socat -T 1 - /dev/ttyAMA0|grep 'SIM800' > /dev/null
+        return $?
+}
+
+provider_there() {
+        P=$(echo AT+COPS?|socat -T 1 - /dev/ttyAMA0|awk -F '"' '/^\+COPS/ {print $2}')
+        if [[ "XXX${P}" == "XXX" ]] ; then
+                return 1
+        else
+                return 0
+        fi
+}
+
+
+initme
 
 # check if fona is on or off 1=on 0=off
 if [ $(status) -eq 1 ] ; then
@@ -149,18 +171,45 @@ if [ $(status) -eq 1 ] ; then
 else
         pushKeyButton
 fi
-
 sleep 3
+
 if [ $(status) -eq 1 ] ; then
-        ifup fona
+	# ok, just sleep until fona is up and found a operator
+	# sending AT commands does not work stable
+	sleep 15
+	ifup fona
+
+	#echo -n "|"
+	#COUNTER=0 ; MAX_TRY=15 ; 
+	#while ! fona_there ; do 
+	#	((COUNTER++));
+	#	echo -n "-"
+	#	test $COUNTER -ge $MAX_TRY && break ; 
+	#	sleep 1 ; 
+	#done
+	#COUNTER=0 ; MAX_TRY=15 ; 
+	#if [[ fona_there ]] ; then
+	#        while ! provider_there ; do
+	#		((COUNTER++));
+	#		echo -n "+"
+	#		test $COUNTER -ge $MAX_TRY && break ; 
+	#                sleep 1;
+	#        done
+	#	echo "|"
+	#        #test provider_there && ifup fona
+	#        test provider_there && echo "ich habe netz."
+	#	sleep 2
+	#else
+	#	echo "|"
+	#	echo "no fona."
+	#fi
+
 else
         # maybe no fona there?
-        echo "no fona, do nothing"
+        echo "no fona? do nothing."
 fi
 
-# cleanup
-echo "18" > /sys/class/gpio/unexport
-echo "21" > /sys/class/gpio/unexport
+cleanme
 EOF
 chmod 755 /opt/targetometer/runfona.sh
 

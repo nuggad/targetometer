@@ -1,14 +1,16 @@
 #!/bin/bash
 
-if ! [ -f raspbian.img ] ; then 
-	if ! [ -f raspbian.img.zip ] ; then 
-		echo "### download raspbian"
-		curl -L -q http://downloads.raspberrypi.org/raspbian_latest > raspbian.img.zip
-	fi
-	echo "### unpack raspbian archive"
-	unzip -x raspbian.img.zip
-	mv $(ls -1 *raspbian*.img) raspbian.img
+
+if ! [ -f raspbian.img.zip ] ; then 
+	echo "### download raspbian"
+	curl -L -q http://downloads.raspberrypi.org/raspbian_latest > raspbian.img.zip
 fi
+test -f raspbian.img && rm -v raspbian.img
+
+echo "### unpack raspbian archive"
+unzip -x raspbian.img.zip
+mv -v *raspbian*.img raspbian.img
+
 sudo which kpartx > /dev/null || { 
 	echo "### install kpartx"
 	sudo aptitude -y install kpartx 
