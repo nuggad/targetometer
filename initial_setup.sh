@@ -59,7 +59,8 @@ echo '############ distribute_setup.py #############'
 # sowas soll man jetzt machen
 #curl https://bootstrap.pypa.io/ez_setup.py -o - | python
 echo '############ get-pip.py #############'
-curl -q -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+#curl -q -L -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+curl -q -L -O https://bootstrap.pypa.io/get-pip.py
 python get-pip.py
 echo '############ pip virtualenv, requests ####################'
 /usr/local/bin/pip install virtualenv
